@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import { 
-  Teacher, Student, ClassItem, SubjectItem, Material, JournalEntry, Exam, ExamQuestion, QuestionType, TeacherScheduleNote, TeacherAnnouncement, QuestionBank
+  Teacher, Student, ClassItem, SubjectItem, Material, JournalEntry, Exam, ExamQuestion, QuestionType, TeacherScheduleNote, TeacherAnnouncement, QuestionBank, ExamSubmission, ShareRequest
 } from '../types';
 
 import { 
@@ -389,7 +389,7 @@ export default function TeacherPanel({
 
   const teacherAnnouncements = announcements.filter(a => {
     if (currentTeacher.name === 'Semua Guru') return true;
-    const currentSubjects = currentTeacher.subject.split(',').map(s => s.trim().toLowerCase());
+    const currentSubjects = (currentTeacher.subject || '').split(',').map(s => s.trim().toLowerCase());
     const annSubjects = (a.teacherSubject || '').split(',').map(s => s.trim().toLowerCase());
     const hasSubjectOverlap = currentTeacher.subject !== 'Semua Mata Pelajaran' && currentSubjects.some(s => annSubjects.includes(s));
     return a.teacherId === currentTeacher.id || 

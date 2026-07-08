@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Teacher, Student, ClassItem, SubjectItem, Material, JournalEntry, Exam, CheatLog, ExamSubmission, TeacherAnnouncement, RegistrationRequest, SchoolConfig, QuestionBank 
+  Teacher, Student, ClassItem, SubjectItem, Material, JournalEntry, Exam, CheatLog, ExamSubmission, TeacherAnnouncement, RegistrationRequest, SchoolConfig, QuestionBank, ShareRequest 
 } from './types';
 import AdminPanel from './components/AdminPanel';
 import TeacherPanel from './components/TeacherPanel';
@@ -18,7 +18,8 @@ const DEFAULT_SCHOOL_CONFIG: SchoolConfig = {
   landingTopTag: 'Jurnal Mengajar dan E-Learning',
   landingTitle: 'Sistem Manajemen Mengajar & E-Learning SMPN 1 BEJI',
   landingDescription: 'Aplikasi Komprehensif untuk membantu Guru dan Siswa dalam Pembelajaran dan Materi serta Ujian/Tugas & Evaluasi.',
-  footerText: '© 2026 E-Learning/E-Jurnal SMPN 1 BEJI, Kab. Pasuruan.'
+  footerText: '© 2026 E-Learning/E-Jurnal SMPN 1 BEJI, Kab. Pasuruan.',
+  adminPassword: 'admin123'
 };
 
 // === INITIAL SEED DATA ===
@@ -435,6 +436,19 @@ export default function App() {
     updateDocument('classes', updatedClass);
   };
 
+
+  const handleAddSubject = (subjectName: string) => {
+    const trimmed = subjectName.trim();
+    if (!trimmed) return;
+    const exists = subjects.some(s => s.name.toLowerCase() === trimmed.toLowerCase());
+    if (exists) return;
+    const newSubjectNode: SubjectItem = {
+      id: `subj_${Math.random().toString(36).substring(7)}`,
+      name: trimmed
+    };
+    addDocument('subjects', newSubjectNode);
+  };
+
   const handleDeleteSubject = (id: string) => {
     deleteDocument('subjects', id);
   };
@@ -451,13 +465,34 @@ export default function App() {
     updateDocument('teachers', updatedTeacher);
   };
 
+  const handleAddTeacher = (newTeacher: Omit<Teacher, 'id'>) => {
+    const teacherNode: Teacher = {
+      ...newTeacher,
+      id: `t_${Math.random().toString(36).substring(7)}`
+    };
+    addDocument('teachers', teacherNode);
+  };
+
+  const handleSaveMaterial = (newMat: Omit<Material, 'id' | 'createdAt'>) => {
+    const matNode: Material = {
+      ...newMat,
+      id: `m_${Math.random().toString(36).substring(7)}`,
+      createdAt: new Date().toISOString()
+    };
+    addDocument('materials', matNode);
+  };
+
   const handleUpdateMaterial = (updatedMat: Material) => {
     updateDocument('materials', updatedMat);
   };
 
+
+  const handleToggleMaterial = (id: string, currentStatus: 'Aktif' | 'Draft') => {
+    updateDocument('materials', { id, status: currentStatus === 'Aktif' ? 'Draft' : 'Aktif' } as any);
+  };
+
   const handleDeleteMaterial = (id: string) => {
-    const updated = materials.filter(m => m.id !== id);
-    saveMaterialsState(updated);
+    deleteDocument('materials', id);
   };
 
   const handleSaveExam = (newExam: Omit<Exam, 'id' | 'createdAt'>) => {
@@ -586,7 +621,8 @@ export default function App() {
     const user = usernameInput.trim();
     const pass = passwordInput.trim();
 
-    if (user === 'admin' && pass === 'admin123') {
+    const expectedAdminPass = schoolConfig?.adminPassword || 'admin123';
+    if (user === 'admin' && pass === expectedAdminPass) {
       setCurrentRole('Admin');
       setActiveUser({ name: 'Administrator Utama', username: 'admin' });
       return;
@@ -830,7 +866,7 @@ export default function App() {
                           <input
                             type="password"
                             required
-                            placeholder="admin123, atau guru123, atau email siswa"
+                            placeholder="Masukkan password / email"
                             value={passwordInput}
                             onChange={(e) => setPasswordInput(e.target.value)}
                             className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
@@ -848,15 +884,6 @@ export default function App() {
                           Masuk Sistem
                         </button>
                       </form>
-
-                      <div className="border-t border-slate-100 pt-4 space-y-2 text-[10px] text-slate-400">
-                        <p className="font-bold text-slate-500 uppercase tracking-wide">Kunci Akun Pengujian Default:</p>
-                        <ul className="list-disc pl-4 space-y-1 font-mono">
-                          <li><strong>Admin:</strong> admin / admin123</li>
-                          <li><strong>Guru (Bambang):</strong> 198503122011011002 / guru123</li>
-                          <li><strong>Siswa (Aditya):</strong> 10241 / aditya@smp.sch.id</li>
-                        </ul>
-                      </div>
                     </>
                   ) : (
                     <>

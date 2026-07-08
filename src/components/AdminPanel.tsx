@@ -62,7 +62,7 @@ export default function AdminPanel({
   onRejectRegistration
 }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'teachers' | 'students' | 'journals' | 'cheatlogs' | 'classes' | 'registrations' | 'config' | 'archived_students'>('dashboard');
-  const pendingCount = registrations.filter(r => r.status === 'Pending').length;
+  const pendingCount = (registrations || []).filter(r => r.status === 'Pending').length;
   
   // State for config editing
   const [localConfig, setLocalConfig] = useState<SchoolConfig>(schoolConfig || {
@@ -248,9 +248,9 @@ export default function AdminPanel({
     
     teacherImportPreview.forEach(item => {
       if (onAddSubject && item.subject) {
-        item.subject.split(',').forEach(s => {
+        (item.subject || '').split(',').forEach(s => {
           const trimmed = s.trim();
-          if (trimmed && !subjects.some(sub => sub.name.toLowerCase() === trimmed.toLowerCase())) {
+          if (trimmed && !subjects.some(sub => (sub.name || '').toLowerCase() === trimmed.toLowerCase())) {
             onAddSubject(trimmed);
           }
         });
@@ -341,22 +341,22 @@ export default function AdminPanel({
 
   // Filters
   const filteredTeachers = teachers.filter(t => 
-    t.name.toLowerCase().includes(searchTeacher.toLowerCase()) || 
+    (t.name || '').toLowerCase().includes(searchTeacher.toLowerCase()) || 
     t.nip.includes(searchTeacher) ||
-    t.subject.toLowerCase().includes(searchTeacher.toLowerCase())
+    (t.subject || '').toLowerCase().includes(searchTeacher.toLowerCase())
   );
 
   const activeStudents = students.filter(s => !s.status || s.status === 'Aktif');
   const archivedStudents = students.filter(s => s.status === 'Lulus' || s.status === 'Pindah');
 
   const filteredStudents = activeStudents.filter(s => 
-    s.name.toLowerCase().includes(searchStudent.toLowerCase()) || 
+    (s.name || '').toLowerCase().includes(searchStudent.toLowerCase()) || 
     s.nis.includes(searchStudent) ||
     getClassName(s.classId).toLowerCase().includes(searchStudent.toLowerCase())
   );
 
   const filteredArchivedStudents = archivedStudents.filter(s => 
-    s.name.toLowerCase().includes(searchStudent.toLowerCase()) || 
+    (s.name || '').toLowerCase().includes(searchStudent.toLowerCase()) || 
     s.nis.includes(searchStudent)
   );
 
@@ -490,6 +490,24 @@ export default function AdminPanel({
             }}
             className="space-y-5 max-w-3xl"
           >
+            <div className="bg-red-50/50 p-4 rounded-xl border border-red-100 space-y-4">
+              <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-red-500"></div> Kredensial Akun Admin
+              </h3>
+              <div>
+                <label className="block text-xs font-semibold mb-1 text-slate-700">Password Admin</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="admin123"
+                  value={localConfig.adminPassword || ''}
+                  onChange={(e) => setLocalConfig({...localConfig, adminPassword: e.target.value})}
+                  className="w-full px-3.5 py-2 border border-red-200 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-red-500 bg-white"
+                />
+                <p className="text-[10px] text-slate-500 mt-1.5">Username untuk login sebagai admin selalu <strong className="font-mono text-slate-700">admin</strong>.</p>
+              </div>
+            </div>
+
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
               <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-indigo-500"></div> Bagian Header Atas
@@ -715,7 +733,7 @@ export default function AdminPanel({
                       bg: 'bg-purple-100',
                       badge: 'Ujian'
                     })),
-                    ...registrations.filter(r => r.status === 'Pending').map(r => ({
+                    ...(registrations || []).filter(r => r.status === 'Pending').map(r => ({
                       id: `r-${r.id}`,
                       type: 'registration',
                       date: r.createdAt,
@@ -880,7 +898,7 @@ export default function AdminPanel({
                     <h4 className="font-bold text-slate-900 text-sm truncate">{teacher.name}</h4>
                     <p className="text-slate-400 text-xs font-mono mt-0.5">NIP: {teacher.nip}</p>
                     <div className="flex flex-wrap gap-1 mt-1.5">
-                      {teacher.subject.split(',').map((subj, sIdx) => (
+                      {(teacher.subject || '').split(',').map((subj, sIdx) => (
                         <span key={sIdx} className="inline-block bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded border border-indigo-100">
                           {subj.trim()}
                         </span>
@@ -1215,10 +1233,10 @@ export default function AdminPanel({
           ) : (
             <div className="space-y-4">
               {journals.map((entry) => {
-                const presentList = entry.attendance.filter(a => a.status === 'Hadir');
-                const sakitList = entry.attendance.filter(a => a.status === 'Sakit');
-                const izinList = entry.attendance.filter(a => a.status === 'Izin');
-                const alpaList = entry.attendance.filter(a => a.status === 'Alpa');
+                const presentList = (entry.attendance || []).filter(a => a.status === 'Hadir');
+                const sakitList = (entry.attendance || []).filter(a => a.status === 'Sakit');
+                const izinList = (entry.attendance || []).filter(a => a.status === 'Izin');
+                const alpaList = (entry.attendance || []).filter(a => a.status === 'Alpa');
 
                 return (
                   <div key={entry.id} className="p-5 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition space-y-4">
@@ -1558,7 +1576,7 @@ export default function AdminPanel({
             {/* Subjects list */}
             <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
               {subjects.map((sub) => {
-                const teacherCount = teachers.filter(t => t.subject.split(',').map(s => s.trim().toLowerCase()).includes(sub.name.toLowerCase())).length;
+                const teacherCount = teachers.filter(t => (t.subject || '').split(',').map(s => s.trim().toLowerCase()).includes((sub.name || '').toLowerCase())).length;
                 const isEditing = editingSubject?.id === sub.id;
 
                 return (
@@ -1667,19 +1685,19 @@ export default function AdminPanel({
             <div className="bg-amber-50/50 border border-amber-100 p-3.5 rounded-xl">
               <span className="text-[10px] font-extrabold uppercase text-amber-600 block">Menunggu Persetujuan</span>
               <span className="text-xl font-black text-amber-900 mt-1 block">
-                {registrations.filter(r => r.status === 'Pending').length}
+                {(registrations || []).filter(r => r.status === 'Pending').length}
               </span>
             </div>
             <div className="bg-emerald-50/50 border border-emerald-100 p-3.5 rounded-xl">
               <span className="text-[10px] font-extrabold uppercase text-emerald-600 block">Disetujui Aktif</span>
               <span className="text-xl font-black text-emerald-900 mt-1 block">
-                {registrations.filter(r => r.status === 'Approved').length}
+                {(registrations || []).filter(r => r.status === 'Approved').length}
               </span>
             </div>
             <div className="bg-red-50/50 border border-red-100 p-3.5 rounded-xl">
               <span className="text-[10px] font-extrabold uppercase text-red-600 block">Ditolak</span>
               <span className="text-xl font-black text-red-900 mt-1 block">
-                {registrations.filter(r => r.status === 'Rejected').length}
+                {(registrations || []).filter(r => r.status === 'Rejected').length}
               </span>
             </div>
           </div>
@@ -1704,7 +1722,7 @@ export default function AdminPanel({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
-                  {registrations.map((reg) => (
+                  {(registrations || []).map((reg) => (
                     <tr key={reg.id} className="hover:bg-slate-50/50 transition">
                       <td className="px-5 py-3.5 whitespace-nowrap">
                         <span className={`px-2.5 py-1 rounded-md font-extrabold text-[10px] uppercase tracking-wider ${
@@ -1816,13 +1834,13 @@ export default function AdminPanel({
                     📚 Mata Pelajaran yang Diajar (Bisa Pilih &gt; 1 Mapel) *
                   </label>
                   <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full">
-                    {newTeacher.subject ? newTeacher.subject.split(',').filter(Boolean).length : 0} Mapel Dipilih
+                    {newTeacher.subject ? (newTeacher.subject || '').split(',').filter(Boolean).length : 0} Mapel Dipilih
                   </span>
                 </div>
 
                 {/* Selected Subjects Badges */}
                 <div className="flex flex-wrap gap-1.5 min-h-[36px] p-2 bg-white border border-slate-200 rounded-lg items-center">
-                  {newTeacher.subject && newTeacher.subject.split(',').map((subj, idx) => {
+                  {newTeacher.subject && (newTeacher.subject || '').split(',').map((subj, idx) => {
                     const trimmed = subj.trim();
                     if (!trimmed) return null;
                     return (
@@ -1856,16 +1874,16 @@ export default function AdminPanel({
                   <p className="text-[11px] font-semibold text-slate-500 mb-1.5">Klik kotak mapel untuk menambah / mengurangi pilihan:</p>
                   <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1">
                     {subjects.map(s => {
-                      const currentList = newTeacher.subject ? newTeacher.subject.split(',').map(item => item.trim().toLowerCase()) : [];
-                      const isSelected = currentList.includes(s.name.toLowerCase());
+                      const currentList = newTeacher.subject ? (newTeacher.subject || '').split(',').map(item => item.trim().toLowerCase()) : [];
+                      const isSelected = currentList.includes((s.name || '').toLowerCase());
                       return (
                         <button
                           key={s.id}
                           type="button"
                           onClick={() => {
-                            const list = newTeacher.subject ? newTeacher.subject.split(',').map(item => item.trim()).filter(Boolean) : [];
+                            const list = newTeacher.subject ? (newTeacher.subject || '').split(',').map(item => item.trim()).filter(Boolean) : [];
                             if (isSelected) {
-                              const updated = list.filter(item => item.toLowerCase() !== s.name.toLowerCase()).join(', ');
+                              const updated = list.filter(item => item.toLowerCase() !== (s.name || '').toLowerCase()).join(', ');
                               setNewTeacher(prev => ({ ...prev, subject: updated }));
                             } else {
                               list.push(s.name);
@@ -1898,10 +1916,10 @@ export default function AdminPanel({
                         const inputEl = e.currentTarget;
                         const val = inputEl.value.trim();
                         if (val) {
-                          if (onAddSubject && !subjects.some(s => s.name.toLowerCase() === val.toLowerCase())) {
+                          if (onAddSubject && !subjects.some(s => (s.name || '').toLowerCase() === val.toLowerCase())) {
                             onAddSubject(val);
                           }
-                          const list = newTeacher.subject ? newTeacher.subject.split(',').map(item => item.trim()).filter(Boolean) : [];
+                          const list = newTeacher.subject ? (newTeacher.subject || '').split(',').map(item => item.trim()).filter(Boolean) : [];
                           if (!list.some(item => item.toLowerCase() === val.toLowerCase())) {
                             list.push(val);
                             setNewTeacher(prev => ({ ...prev, subject: list.join(', ') }));
@@ -1917,10 +1935,10 @@ export default function AdminPanel({
                       const inputEl = document.getElementById('custom_subject_input_add') as HTMLInputElement;
                       if (inputEl && inputEl.value.trim()) {
                         const val = inputEl.value.trim();
-                        if (onAddSubject && !subjects.some(s => s.name.toLowerCase() === val.toLowerCase())) {
+                        if (onAddSubject && !subjects.some(s => (s.name || '').toLowerCase() === val.toLowerCase())) {
                           onAddSubject(val);
                         }
-                        const list = newTeacher.subject ? newTeacher.subject.split(',').map(item => item.trim()).filter(Boolean) : [];
+                        const list = newTeacher.subject ? (newTeacher.subject || '').split(',').map(item => item.trim()).filter(Boolean) : [];
                         if (!list.some(item => item.toLowerCase() === val.toLowerCase())) {
                           list.push(val);
                           setNewTeacher(prev => ({ ...prev, subject: list.join(', ') }));
@@ -2149,13 +2167,13 @@ export default function AdminPanel({
                     📚 Mata Pelajaran yang Diajar (Bisa Pilih &gt; 1 Mapel) *
                   </label>
                   <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full">
-                    {editingTeacher.subject ? editingTeacher.subject.split(',').filter(Boolean).length : 0} Mapel Dipilih
+                    {editingTeacher.subject ? (editingTeacher.subject || '').split(',').filter(Boolean).length : 0} Mapel Dipilih
                   </span>
                 </div>
 
                 {/* Selected Subjects Badges */}
                 <div className="flex flex-wrap gap-1.5 min-h-[36px] p-2 bg-white border border-slate-200 rounded-lg items-center">
-                  {editingTeacher.subject && editingTeacher.subject.split(',').map((subj, idx) => {
+                  {editingTeacher.subject && (editingTeacher.subject || '').split(',').map((subj, idx) => {
                     const trimmed = subj.trim();
                     if (!trimmed) return null;
                     return (
@@ -2189,16 +2207,16 @@ export default function AdminPanel({
                   <p className="text-[11px] font-semibold text-slate-500 mb-1.5">Klik kotak mapel di bawah untuk menambah / mengurangi pilihan:</p>
                   <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1">
                     {subjects.map(s => {
-                      const currentList = editingTeacher.subject ? editingTeacher.subject.split(',').map(item => item.trim().toLowerCase()) : [];
-                      const isSelected = currentList.includes(s.name.toLowerCase());
+                      const currentList = editingTeacher.subject ? (editingTeacher.subject || '').split(',').map(item => item.trim().toLowerCase()) : [];
+                      const isSelected = currentList.includes((s.name || '').toLowerCase());
                       return (
                         <button
                           key={s.id}
                           type="button"
                           onClick={() => {
-                            const list = editingTeacher.subject ? editingTeacher.subject.split(',').map(item => item.trim()).filter(Boolean) : [];
+                            const list = editingTeacher.subject ? (editingTeacher.subject || '').split(',').map(item => item.trim()).filter(Boolean) : [];
                             if (isSelected) {
-                              const updated = list.filter(item => item.toLowerCase() !== s.name.toLowerCase()).join(', ');
+                              const updated = list.filter(item => item.toLowerCase() !== (s.name || '').toLowerCase()).join(', ');
                               setEditingTeacher({ ...editingTeacher, subject: updated || 'Umum' });
                             } else {
                               if (list.length === 1 && list[0] === 'Umum') {
@@ -2235,10 +2253,10 @@ export default function AdminPanel({
                         const inputEl = e.currentTarget;
                         const val = inputEl.value.trim();
                         if (val) {
-                          if (onAddSubject && !subjects.some(s => s.name.toLowerCase() === val.toLowerCase())) {
+                          if (onAddSubject && !subjects.some(s => (s.name || '').toLowerCase() === val.toLowerCase())) {
                             onAddSubject(val);
                           }
-                          const list = editingTeacher.subject ? editingTeacher.subject.split(',').map(item => item.trim()).filter(Boolean) : [];
+                          const list = editingTeacher.subject ? (editingTeacher.subject || '').split(',').map(item => item.trim()).filter(Boolean) : [];
                           if (!list.some(item => item.toLowerCase() === val.toLowerCase())) {
                             if (list.length === 1 && list[0] === 'Umum') {
                               setEditingTeacher({ ...editingTeacher, subject: val });
@@ -2258,10 +2276,10 @@ export default function AdminPanel({
                       const inputEl = document.getElementById('custom_subject_input_edit') as HTMLInputElement;
                       if (inputEl && inputEl.value.trim()) {
                         const val = inputEl.value.trim();
-                        if (onAddSubject && !subjects.some(s => s.name.toLowerCase() === val.toLowerCase())) {
+                        if (onAddSubject && !subjects.some(s => (s.name || '').toLowerCase() === val.toLowerCase())) {
                           onAddSubject(val);
                         }
-                        const list = editingTeacher.subject ? editingTeacher.subject.split(',').map(item => item.trim()).filter(Boolean) : [];
+                        const list = editingTeacher.subject ? (editingTeacher.subject || '').split(',').map(item => item.trim()).filter(Boolean) : [];
                         if (!list.some(item => item.toLowerCase() === val.toLowerCase())) {
                           if (list.length === 1 && list[0] === 'Umum') {
                             setEditingTeacher({ ...editingTeacher, subject: val });
@@ -2757,7 +2775,7 @@ export default function AdminPanel({
                           <td className="px-3 py-1.5 text-slate-500">{item.email}</td>
                           <td className="px-3 py-1.5 font-bold text-indigo-700">
                             <div className="flex flex-wrap gap-1">
-                              {item.subject.split(',').map((s, sIdx) => (
+                              {(item.subject || '').split(',').map((s, sIdx) => (
                                 <span key={sIdx} className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded text-[10px]">
                                   {s.trim()}
                                 </span>

@@ -6,6 +6,7 @@ export interface SchoolConfig {
   landingTitle: string;
   landingDescription: string;
   footerText: string;
+  adminPassword?: string;
 }
 
 export interface Teacher {

@@ -554,7 +554,7 @@ export default function StudentPanel({
                 const subjectName = subjects.find(s => s.id === mat.subjectId)?.name || 'Mata Pelajaran';
                 const teacherName = mat.teacherId
                   ? teachers.find(t => t.id === mat.teacherId)?.name
-                  : teachers.find(t => t.subject.split(',').map(s => s.trim().toLowerCase()).includes(subjectName.toLowerCase()))?.name || 'Guru Mapel';
+                  : teachers.find(t => (t.subject || '').split(',').map(s => s.trim().toLowerCase()).includes(subjectName.toLowerCase()))?.name || 'Guru Mapel';
 
                 return (
                   <div key={mat.id} className="border border-slate-100 rounded-2xl p-5 hover:shadow-md transition bg-slate-50/50 flex flex-col justify-between space-y-4 animate-fade-in">
@@ -663,7 +663,7 @@ export default function StudentPanel({
                 const subjectName = subjects.find(s => s.id === exam.subjectId)?.name || 'Mata Pelajaran';
                 const teacherName = exam.teacherId
                   ? teachers.find(t => t.id === exam.teacherId)?.name
-                  : teachers.find(t => t.subject.split(',').map(s => s.trim().toLowerCase()).includes(subjectName.toLowerCase()))?.name || 'Guru Mapel';
+                  : teachers.find(t => (t.subject || '').split(',').map(s => s.trim().toLowerCase()).includes(subjectName.toLowerCase()))?.name || 'Guru Mapel';
 
                 return (
                   <div key={exam.id} className="border border-slate-100 rounded-2xl p-5 hover:border-slate-200 transition bg-slate-50/50 flex flex-col justify-between space-y-4 animate-fade-in">
