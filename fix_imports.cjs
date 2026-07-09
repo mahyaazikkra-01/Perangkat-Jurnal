@@ -1,22 +1,9 @@
 const fs = require('fs');
+let content = fs.readFileSync('src/App.tsx', 'utf8');
 
-let appContent = fs.readFileSync('src/App.tsx', 'utf8');
-appContent = appContent.replace(
-  "ShareRequest",
-  "ShareRequest, GlobalAnnouncement"
-);
-fs.writeFileSync('src/App.tsx', appContent);
+const targetImport = "import { syncCollection, addDocument, deleteDocument, updateDocument, syncConfig, saveConfig } from './firebaseSync';";
+const newImports = targetImport + "\nimport { auth } from './firebase';\nimport { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';";
 
-let adminContent = fs.readFileSync('src/components/AdminPanel.tsx', 'utf8');
-adminContent = adminContent.replace(
-  "SchoolConfig",
-  "SchoolConfig, GlobalAnnouncement"
-);
-fs.writeFileSync('src/components/AdminPanel.tsx', adminContent);
+content = content.replace(targetImport, newImports);
 
-let teacherContent = fs.readFileSync('src/components/TeacherPanel.tsx', 'utf8');
-teacherContent = teacherContent.replace(
-  "Settings, Building, UserCheck,",
-  "Settings, Building, UserCheck, ShieldAlert,"
-);
-fs.writeFileSync('src/components/TeacherPanel.tsx', teacherContent);
+fs.writeFileSync('src/App.tsx', content);

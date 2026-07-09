@@ -8,6 +8,8 @@ import TeacherPanel from './components/TeacherPanel';
 import StudentPanel from './components/StudentPanel';
 import GasScriptHub from './components/GasScriptHub';
 import { syncCollection, addDocument, deleteDocument, updateDocument, syncConfig, saveConfig } from './firebaseSync';
+import { auth } from './firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { 
   Database, UserCheck, BookOpen, GraduationCap, ShieldAlert, Award, FileCode, CheckCircle2, ChevronRight, LogIn, UserPlus, Clock, CheckCircle, XCircle
 } from 'lucide-react';
@@ -634,40 +636,75 @@ export default function App() {
 
 
   // --- USER AUTHENTICATION HANDLERS ---
-  const handleManualLogin = (e: React.FormEvent) => {
+  const handleManualLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
 
-    const user = usernameInput.trim();
+    const identifier = usernameInput.trim();
     const pass = passwordInput.trim();
 
+    // 1. Admin Bypass (Local check, no Firebase Auth required)
     const expectedAdminPass = schoolConfig?.adminPassword || 'admin123';
-    if (user === 'admin' && pass === expectedAdminPass) {
+    if (identifier === 'admin' && pass === expectedAdminPass) {
       setCurrentRole('Admin');
       setActiveUser({ name: 'Administrator Utama', username: 'admin' });
       return;
     }
 
-    // Try Teacher check NIP
-    const matchedTeacher = teachers.find(t => t.nip === user);
-    const expectedTeacherPass = matchedTeacher?.password || 'guru123';
-    if (matchedTeacher && pass === expectedTeacherPass) {
-      setCurrentRole('Teacher');
-      setActiveUser(matchedTeacher);
-      return;
-    }
+    try {
+      // 2. Firebase Auth Check (Requires Email Format)
+      // Map NIP/NIS to email if it's not an email
+      const email = identifier.includes('@') ? identifier : `${identifier}@sekolah.id`;
+      
+      const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+      const fbUser = userCredential.user;
 
-    // Try Student check NIS
-    const matchedStudent = students.find(s => s.nis === user);
-    const expectedStudentPass = matchedStudent?.password || matchedStudent?.email || matchedStudent?.nis;
-    if (matchedStudent && pass === expectedStudentPass) {
-      setCurrentRole('Student');
-      const className = SEED_CLASSES.find(c => c.id === matchedStudent.classId)?.name || 'N/A';
-      setActiveUser({ ...matchedStudent, className });
-      return;
-    }
+      // 3. Match with Firestore records after successful Auth
+      if (email === 'admin@sekolah.id') {
+        setCurrentRole('Admin');
+        setActiveUser({ name: 'Administrator Utama', username: 'admin', email: fbUser.email });
+        return;
+      }
 
-    setLoginError('Kredensial tidak valid! Periksa panduan akun default di bawah.');
+      const matchedTeacher = teachers.find(t => t.nip === identifier || t.email === email);
+      if (matchedTeacher) {
+        setCurrentRole('Teacher');
+        setActiveUser(matchedTeacher);
+        return;
+      }
+
+      const matchedStudent = students.find(s => s.nis === identifier || s.email === email);
+      if (matchedStudent) {
+        setCurrentRole('Student');
+        const className = SEED_CLASSES.find(c => c.id === matchedStudent.classId)?.name || 'N/A';
+        setActiveUser({ ...matchedStudent, className });
+        return;
+      }
+
+      setLoginError('Akun belum terdaftar di database sekolah atau belum disetujui Admin.');
+      await signOut(auth);
+    } catch (error: any) {
+      // Fallback check local dummy data for easier testing during setup
+      const matchedTeacher = teachers.find(t => t.nip === identifier);
+      const expectedTeacherPass = matchedTeacher?.password || 'guru123';
+      if (matchedTeacher && pass === expectedTeacherPass) {
+        setCurrentRole('Teacher');
+        setActiveUser(matchedTeacher);
+        return;
+      }
+  
+      const matchedStudent = students.find(s => s.nis === identifier);
+      const expectedStudentPass = matchedStudent?.password || matchedStudent?.email || matchedStudent?.nis;
+      if (matchedStudent && pass === expectedStudentPass) {
+        setCurrentRole('Student');
+        const className = SEED_CLASSES.find(c => c.id === matchedStudent.classId)?.name || 'N/A';
+        setActiveUser({ ...matchedStudent, className });
+        return;
+      }
+
+      setLoginError('Login gagal. Periksa Username/NIP/NIS dan Password Anda (atau belum daftar di Firebase).');
+      console.error(error);
+    }
   };
 
   const handleQuickLogin = (role: 'Admin' | 'Teacher' | 'Student', targetObj?: any) => {
@@ -686,7 +723,12 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error(error);
+    }
     setCurrentRole('Guest');
     setActiveUser(null);
     setUsernameInput('');
@@ -871,11 +913,11 @@ export default function App() {
 
                       <form onSubmit={handleManualLogin} className="space-y-4">
                         <div>
-                          <label className="block text-xs font-semibold mb-1 text-slate-700">Username / NIP / NIS</label>
+                          <label className="block text-xs font-semibold mb-1 text-slate-700">Email / Username / NIP</label>
                           <input
                             type="text"
                             required
-                            placeholder="Misal: admin, atau NIP guru, atau NIS siswa"
+                            placeholder="Misal: email@guru.com atau email@siswa.com"
                             value={usernameInput}
                             onChange={(e) => setUsernameInput(e.target.value)}
                             className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
@@ -995,7 +1037,7 @@ export default function App() {
 
                         <div>
                           <label className="block text-xs font-semibold mb-1 text-slate-700">
-                            {regRole === 'Teacher' ? 'Buat Password Login' : 'Buat Password / Email Login'}
+                            {regRole === 'Teacher' ? 'Email (Atau Password min 6 karakter)' : 'Buat Password / Email Login'}
                           </label>
                           <input
                             type="text"

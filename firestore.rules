@@ -1,9 +1,83 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Fungsi bantuan (Helpers)
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
     match /{document=**} {
-      allow read, write: if true;
+      // Default: kunci semua akses
+      allow read, write: if false;
+    }
+
+    match /teachers/{teacherId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn(); // Idealnya isAdmin(), tapi untuk sementara biarkan Guru yang login bisa update profil/registrasi.
+    }
+    match /students/{studentId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    match /classes/{classId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    match /subjects/{subjectId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    match /materials/{materialId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    match /exams/{examId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    match /questionBanks/{qBankId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    match /journals/{journalId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    match /cheatLogs/{cheatLogId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    match /submissions/{submissionId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    match /announcements/{announcementId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    match /registrations/{registrationId} {
+      // Siapa saja boleh membuat registrasi, tapi hanya yang login yang bisa baca/edit (admin)
+      allow create: if true;
+      allow read, update, delete: if isSignedIn();
+    }
+    match /shareRequests/{shareReqId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    match /globalAnnouncements/{gAnnId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    match /config/{configId} {
+      allow read: if true; // Config (logo sekolah dll) perlu dibaca publik saat login
+      allow write: if isSignedIn();
+    }
+    match /admins/{adminId} {
+      allow read, write: if isSignedIn(); 
     }
   }
 }
