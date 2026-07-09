@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Student, Material, Exam, ExamQuestion, ExamSubmission, CheatLog, Teacher, SubjectItem, TeacherAnnouncement
@@ -11,6 +12,7 @@ interface StudentPanelProps {
   currentStudent: Student;
   materials: Material[];
   exams: Exam[];
+  submissions?: ExamSubmission[];
   teachers: Teacher[];
   subjects: SubjectItem[];
   announcements?: TeacherAnnouncement[];
@@ -72,13 +74,14 @@ export default function StudentPanel({
   currentStudent,
   materials,
   exams,
+  submissions = [],
   teachers,
   subjects,
   announcements = [],
   onAddCheatLog,
   onSubmitExam
 }: StudentPanelProps) {
-  const [activeTab, setActiveTab] = useState<'beranda' | 'materials' | 'exams'>('beranda');
+  const [activeTab, setActiveTab] = useState<'beranda' | 'materials' | 'exams' | 'scores'>('beranda');
 
   // Materials Viewer State
   const [activeMaterial, setActiveMaterial] = useState<Material | null>(null);
@@ -113,6 +116,15 @@ export default function StudentPanel({
   // Filter Teacher Announcements for this student
   const studentAnnouncements = announcements.filter(a => {
     if (!a.isActive) return false;
+    
+    // Auto-expiry: Sembunyikan informasi yang usianya lebih dari 7 hari (Otomatis Bersih)
+    if (a.createdAt) {
+      const createdAt = new Date(a.createdAt).getTime();
+      const now = new Date().getTime();
+      const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+      if (now - createdAt > SEVEN_DAYS) return false;
+    }
+
     if (a.targetType === 'all') return true;
     if (a.targetType === 'class') {
       return a.targetClassName === currentStudent.className || a.targetClassId === currentStudent.classId;
@@ -127,8 +139,12 @@ export default function StudentPanel({
   const [showPopNotification, setShowPopNotification] = useState(false);
 
   useEffect(() => {
-    const unread = studentAnnouncements.filter(a => !readAnnouncements.includes(a.id));
-    if (unread.length > 0 && !examStarted) {
+    // Pop-up hanya muncul untuk informasi yang Penting atau Mendesak
+    const unreadUrgent = studentAnnouncements.filter(a => 
+      !readAnnouncements.includes(a.id) && 
+      (a.priority === 'mendesak' || a.priority === 'penting')
+    );
+    if (unreadUrgent.length > 0 && !examStarted) {
       setShowPopNotification(true);
     }
   }, [studentAnnouncements.length, currentStudent.id]);
@@ -145,30 +161,73 @@ export default function StudentPanel({
   useEffect(() => {
     if (!examStarted || !activeExam) return;
 
-    const handleWindowBlur = () => {
-      // Triggered when student navigates away, changes tab, or opens another application
+    const recordCheat = (type: string) => {
       setCheatingAttempts(prev => {
         const next = prev + 1;
-        
-        // Save to parent real-time cheat telemetry
         onAddCheatLog({
           studentName: currentStudent.name,
           studentNis: currentStudent.nis,
           className: currentStudent.className || 'Kelas',
           examTitle: activeExam.title,
-          violationType: `Keluar tab browser (${next}x)`
+          violationType: `${type} (${next}x)`
         });
-
         return next;
       });
       setShowCheatModal(true);
     };
 
+    const handleWindowBlur = () => {
+      recordCheat('Keluar dari layar/tab aplikasi');
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden || document.visibilityState === 'hidden') {
+        recordCheat('Aplikasi masuk ke background/ditutup');
+      }
+    };
+
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      // Optional: recordCheat('Mencoba klik kanan');
+    };
+
+    const handleCopyPaste = (e: ClipboardEvent) => {
+      e.preventDefault();
+      // Optional: recordCheat('Mencoba menyalin/menempel teks');
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Mencegah Print Screen
+      if (e.key === 'PrintScreen') {
+        e.preventDefault();
+        recordCheat('Mencoba mengambil screenshot');
+      }
+      // Mencegah Ctrl+C, Ctrl+V, Ctrl+X, dll
+      if (e.ctrlKey || e.metaKey) {
+        if (['c', 'v', 'x', 'a', 'p'].includes(e.key.toLowerCase())) {
+          e.preventDefault();
+        }
+      }
+    };
+
     window.addEventListener('blur', handleWindowBlur);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('copy', handleCopyPaste);
+    document.addEventListener('cut', handleCopyPaste);
+    document.addEventListener('paste', handleCopyPaste);
+    document.addEventListener('keydown', handleKeyDown);
+
     return () => {
       window.removeEventListener('blur', handleWindowBlur);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('copy', handleCopyPaste);
+      document.removeEventListener('cut', handleCopyPaste);
+      document.removeEventListener('paste', handleCopyPaste);
+      document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [examStarted, activeExam, currentStudent]);
+  }, [examStarted, activeExam, currentStudent, onAddCheatLog]);
 
   // Exam Countdown Timer
   useEffect(() => {
@@ -335,7 +394,7 @@ export default function StudentPanel({
   };
 
   const handleAutoSubmitExam = () => {
-    alert('Waktu ujian telah habis! Jawaban Anda otomatis terkirim.');
+    toast('Waktu ujian telah habis! Jawaban Anda otomatis terkirim.');
     handleEvaluateExam();
   };
 
@@ -397,6 +456,16 @@ export default function StudentPanel({
               }`}
             >
               ✍️ Ujian/Soal Evaluasi
+            </button>
+            <button
+              onClick={() => setActiveTab('scores')}
+              className={`flex-1 sm:flex-none text-center whitespace-nowrap px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'scores'
+                  ? 'bg-indigo-50 text-indigo-700'
+                  : 'text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              📊 Riwayat Nilai
             </button>
           </div>
         </div>
@@ -736,7 +805,7 @@ export default function StudentPanel({
 
       {/* CORE CBT EXAM RUNNING VIEW */}
       {examStarted && activeExam && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start select-none">
           {/* LEFT SIDE - QUESTIONS & INPUTS */}
           <div className="lg:col-span-8 bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
@@ -1109,8 +1178,60 @@ export default function StudentPanel({
         </div>
       )}
 
+      {/* SCORES HISTORY */}
+      {activeTab === 'scores' && !examStarted && !scoreResult && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-6 space-y-6">
+          <div>
+            <h3 className="font-bold text-slate-900 text-lg">Riwayat Nilai & Evaluasi</h3>
+            <p className="text-slate-500 text-xs mt-0.5">Daftar nilai ujian dan tugas yang telah Anda kerjakan</p>
+          </div>
+
+          {(() => {
+            const mySubmissions = submissions.filter(sub => sub.studentNis === currentStudent.nis);
+            
+            if (mySubmissions.length === 0) {
+              return (
+                <div className="text-center py-12 border border-dashed border-slate-200 rounded-2xl">
+                  <p className="text-slate-400 text-xs">Anda belum memiliki riwayat nilai.</p>
+                </div>
+              );
+            }
+
+            return (
+              <div className="space-y-4">
+                {mySubmissions.map((sub) => {
+                  const subjectName = subjects.find(s => s.id === exams.find(e => e.id === sub.examId)?.subjectId)?.name || 'Mata Pelajaran';
+                  
+                  return (
+                    <div key={sub.id} className="border border-slate-100 rounded-2xl p-5 hover:border-slate-200 transition bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-fade-in">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded">
+                            {subjectName}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            {new Date(sub.submittedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <h4 className="font-extrabold text-slate-900 text-sm">{sub.examTitle}</h4>
+                      </div>
+                      <div className="bg-white px-5 py-3 rounded-xl shadow-sm border border-slate-100 flex flex-col items-center min-w-[100px]">
+                        <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mb-1">Nilai Akhir</span>
+                        <span className={`text-2xl font-black ${sub.score >= 75 ? 'text-green-600' : 'text-rose-600'}`}>
+                          {sub.score}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
       {/* POPUP MODAL NOTIFIKASI UPON LOGIN (IF UNREAD EXISTS) */}
-      {showPopNotification && !examStarted && unreadCount > 0 && (
+      {showPopNotification && !examStarted && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-white rounded-2xl shadow-2xl border border-amber-300 w-full max-w-lg p-6 space-y-5 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-amber-200 pb-3">

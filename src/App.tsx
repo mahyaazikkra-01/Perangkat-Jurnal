@@ -1,6 +1,7 @@
+import toast, { Toaster } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { 
-  Teacher, Student, ClassItem, SubjectItem, Material, JournalEntry, Exam, CheatLog, ExamSubmission, TeacherAnnouncement, RegistrationRequest, SchoolConfig, QuestionBank, ShareRequest 
+  Teacher, Student, ClassItem, SubjectItem, Material, JournalEntry, Exam, CheatLog, ExamSubmission, TeacherAnnouncement, RegistrationRequest, SchoolConfig, QuestionBank, ShareRequest, GlobalAnnouncement 
 } from './types';
 import AdminPanel from './components/AdminPanel';
 import TeacherPanel from './components/TeacherPanel';
@@ -12,7 +13,7 @@ import {
 } from 'lucide-react';
 
 const DEFAULT_SCHOOL_CONFIG: SchoolConfig = {
-  logoUrl: '',
+  logoUrl: 'https://smpn1beji.sch.id/wp-content/uploads/2025/05/favico.png',
   headerAppName: 'E-LEARNING & JURNAL',
   headerSubtitle: 'SMPN 1 BEJI, Kab. Pasuruan',
   landingTopTag: 'Jurnal Mengajar dan E-Learning',
@@ -272,6 +273,7 @@ export default function App() {
   const [submissions, setSubmissions] = useState<ExamSubmission[]>([]);
   const [announcements, setAnnouncements] = useState<TeacherAnnouncement[]>([]);
   const [shareRequests, setShareRequests] = useState<ShareRequest[]>([]);
+  const [globalAnnouncements, setGlobalAnnouncements] = useState<GlobalAnnouncement[]>([]);
   const [registrations, setRegistrations] = useState<RegistrationRequest[]>([]);
   const [schoolConfig, setSchoolConfig] = useState<SchoolConfig>(DEFAULT_SCHOOL_CONFIG);
 
@@ -303,6 +305,7 @@ export default function App() {
     const unsubAnnouncements = syncCollection('announcements', setAnnouncements, SEED_ANNOUNCEMENTS);
     const unsubRegistrations = syncCollection('registrations', setRegistrations, SEED_REGISTRATIONS);
     const unsubShareRequests = syncCollection('shareRequests', setShareRequests, []);
+    const unsubGlobalAnnouncements = syncCollection('globalAnnouncements', setGlobalAnnouncements, []);
     const unsubSchoolConfig = syncConfig('schoolConfig', setSchoolConfig, DEFAULT_SCHOOL_CONFIG);
 
     return () => {
@@ -319,6 +322,7 @@ export default function App() {
       unsubAnnouncements();
       unsubRegistrations();
       unsubShareRequests();
+      unsubGlobalAnnouncements();
       unsubSchoolConfig();
     };
   }, []);
@@ -334,11 +338,11 @@ export default function App() {
 
     // Check existing
     if (regRole === 'Teacher' && teachers.some(t => t.nip === regIdentifier.trim())) {
-      alert('NIP sudah terdaftar di sistem!');
+      toast('NIP sudah terdaftar di sistem!');
       return;
     }
     if (regRole === 'Student' && students.some(s => s.nis === regIdentifier.trim())) {
-      alert('NIS sudah terdaftar di sistem!');
+      toast('NIS sudah terdaftar di sistem!');
       return;
     }
 
@@ -353,7 +357,7 @@ export default function App() {
       createdAt: new Date().toISOString()
     };
     addDocument('registrations', newReg);
-    alert('Permohonan pendaftaran akun Anda berhasil dikirim! Silakan menunggu persetujuan Admin Sekolah sebelum dapat masuk ke portal.');
+    toast('Permohonan pendaftaran akun Anda berhasil dikirim! Silakan menunggu persetujuan Admin Sekolah sebelum dapat masuk ke portal.');
     setRegName('');
     setRegIdentifier('');
     setRegPassword('');
@@ -383,11 +387,15 @@ export default function App() {
       });
     }
     updateDocument('registrations', { id, status: 'Approved' } as any);
-    alert(`Pendaftaran akun ${reg.name} berhasil disetujui! Akun telah aktif dan ditambahkan ke database.`);
+    toast(`Pendaftaran akun ${reg.name} berhasil disetujui! Akun telah aktif dan ditambahkan ke database.`);
   };
 
   const handleRejectRegistration = (id: string) => {
     updateDocument('registrations', { id, status: 'Rejected' } as any);
+  };
+
+  const handleDeleteRegistration = (id: string) => {
+    deleteDocument('registrations', id);
   };
 
   // --- ACTIONS HANDLERS ---
@@ -436,6 +444,18 @@ export default function App() {
     updateDocument('classes', updatedClass);
   };
 
+
+  const handleAddGlobalAnnouncement = (ann: Omit<GlobalAnnouncement, 'id' | 'createdAt'>) => {
+    addDocument('globalAnnouncements', {
+      ...ann,
+      id: `gann_${Math.random().toString(36).substring(7)}`,
+      createdAt: new Date().toISOString()
+    });
+  };
+
+  const handleDeleteGlobalAnnouncement = (id: string) => {
+    deleteDocument('globalAnnouncements', id);
+  };
 
   const handleAddSubject = (subjectName: string) => {
     const trimmed = subjectName.trim();
@@ -538,14 +558,14 @@ export default function App() {
     addDocument('journals', entryNode);
   };
 
-  const handleAddCheatLog = (log: Omit<CheatLog, 'id' | 'timestamp'>) => {
+  const handleAddCheatLog = React.useCallback((log: Omit<CheatLog, 'id' | 'timestamp'>) => {
     const logNode: CheatLog = {
       ...log,
       id: `cl_${Math.random().toString(36).substring(7)}`,
       timestamp: new Date().toISOString()
     };
     addDocument('cheatLogs', logNode);
-  };
+  }, []);
 
   const handleSubmitExam = (sub: Omit<ExamSubmission, 'id' | 'submittedAt'>) => {
     const subNode: ExamSubmission = {
@@ -674,7 +694,9 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fafafa] flex flex-col text-slate-800 antialiased font-sans">
+    <>
+      <Toaster position="top-center" />
+      <div className="min-h-screen bg-[#fafafa] flex flex-col text-slate-800 antialiased font-sans">
       
       {/* APP HEADER */}
       <header className="bg-slate-900 text-white shadow-md border-b border-slate-800">
@@ -682,16 +704,14 @@ export default function App() {
           <div className="flex justify-between items-center h-16 flex-wrap gap-4 py-3 sm:py-0">
             {/* Title logo */}
             <div className="flex items-center gap-3">
-              {schoolConfig.logoUrl ? (
+              {schoolConfig.logoUrl && schoolConfig.logoUrl !== 'https://smpn1beji.sch.id/wp-content/uploads/2025/05/logo_web_trans-1.png' ? (
                 <img src={schoolConfig.logoUrl} alt="Logo" className="w-10 h-10 object-contain" />
               ) : (
-                <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md font-black text-lg">
-                  {currentRole === 'Student' ? 'E' : 'J'}
-                </div>
+                <img src="https://smpn1beji.sch.id/wp-content/uploads/2025/05/favico.png" alt="Logo" className="w-10 h-10 object-contain" />
               )}
               <div>
                 <h1 className="text-base font-extrabold tracking-tight uppercase">
-                  {schoolConfig.headerAppName}
+                  {currentRole === 'Student' ? 'RUMAH BELAJAR SPENIJI' : schoolConfig.headerAppName}
                 </h1>
                 <p className="text-[10px] text-slate-400 font-medium tracking-wide uppercase">
                   {schoolConfig.headerSubtitle}
@@ -699,31 +719,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Mode toggler */}
-            <div className="flex bg-slate-800 p-1 rounded-xl border border-slate-700 text-xs font-bold shadow-inner">
-              <button
-                onClick={() => setActiveMode('app')}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                  activeMode === 'app'
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <Database className="w-3.5 h-3.5" />
-                <span>Web App Simulator</span>
-              </button>
-              <button
-                onClick={() => setActiveMode('gas')}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                  activeMode === 'gas'
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <FileCode className="w-3.5 h-3.5" />
-                <span>Google Apps Script</span>
-              </button>
-            </div>
+
 
             {/* User status badge */}
             {currentRole !== 'Guest' && (
@@ -760,60 +756,85 @@ export default function App() {
             
             {/* GUEST LANDING & LOGIN */}
             {currentRole === 'Guest' && (
-              <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                
-                {/* Visual Intro */}
-                <div className="lg:col-span-7 space-y-6 lg:py-6">
-                  <span className="bg-indigo-50 text-indigo-700 font-bold text-xs px-3.5 py-1.5 rounded-full uppercase tracking-widest border border-indigo-100">
-                    {schoolConfig.landingTopTag}
-                  </span>
+              <div className="max-w-6xl mx-auto w-full">
+                <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl shadow-indigo-900/10 overflow-hidden flex flex-col lg:flex-row border border-slate-100">
                   
-                  <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 leading-tight">
-                    {schoolConfig.landingTitle}
-                  </h2>
-                  
-                  <p className="text-slate-500 text-sm leading-relaxed font-medium">
-                    {schoolConfig.landingDescription}
-                  </p>
-
-                  {/* Feature lists */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="flex items-start gap-2 text-xs">
-                      <CheckCircle2 className="w-5 h-5 text-indigo-600 flex-shrink-0" />
-                      <div>
-                        <strong className="text-slate-950 font-bold">Jurnal Digital Guru</strong>
-                        <p className="text-slate-400 mt-0.5">Catat kehadiran, topik KBM, dan kendala kelas dengan penyimpanan appendRow.</p>
+                  {/* Visual Intro (Left Side) */}
+                  <div className="lg:w-3/5 p-8 lg:p-14 bg-gradient-to-br from-indigo-600 via-blue-600 to-indigo-900 text-white relative overflow-hidden flex flex-col justify-center">
+                    {/* Decorative Background Elements */}
+                    <div className="absolute top-0 right-0 -mr-20 -mt-20 w-72 h-72 rounded-full bg-white/10 blur-3xl"></div>
+                    <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 rounded-full bg-blue-400/20 blur-3xl"></div>
+                    
+                    <div className="relative z-10 space-y-8">
+                      {/* Logo & Tag */}
+                      <div className="flex items-center gap-4 bg-white/10 w-fit px-4 py-2.5 rounded-2xl backdrop-blur-sm border border-white/20 shadow-lg">
+                        {schoolConfig.logoUrl && schoolConfig.logoUrl !== 'https://smpn1beji.sch.id/wp-content/uploads/2025/05/logo_web_trans-1.png' ? (
+                          <img src={schoolConfig.logoUrl} alt="Logo Sekolah" className="w-10 h-10 object-contain drop-shadow-md" />
+                        ) : (
+                          <img src="https://smpn1beji.sch.id/wp-content/uploads/2025/05/favico.png" alt="Logo Sekolah" className="w-10 h-10 object-contain drop-shadow-md" />
+                        )}
+                        <span className="font-extrabold tracking-widest text-[10px] sm:text-xs uppercase text-indigo-50">
+                          {schoolConfig.landingTopTag}
+                        </span>
                       </div>
-                    </div>
-
-                    <div className="flex items-start gap-2 text-xs">
-                      <CheckCircle2 className="w-5 h-5 text-indigo-600 flex-shrink-0" />
-                      <div>
-                        <strong className="text-slate-950 font-bold">Materi Terintegrasi Drive</strong>
-                        <p className="text-slate-400 mt-0.5">Guru unggah PDF/materi ke Drive folder. Link terintegrasi asinkronus.</p>
+                      
+                      {/* Headlines */}
+                      <div className="space-y-4">
+                        <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight text-white drop-shadow-sm">
+                          {schoolConfig.landingTitle}
+                        </h2>
+                        <p className="text-indigo-100 text-sm lg:text-base leading-relaxed max-w-lg font-medium">
+                          {schoolConfig.landingDescription}
+                        </p>
                       </div>
-                    </div>
 
-                    <div className="flex items-start gap-2 text-xs">
-                      <CheckCircle2 className="w-5 h-5 text-indigo-600 flex-shrink-0" />
-                      <div>
-                        <strong className="text-slate-950 font-bold">Ujian / Tugas & Evaluasi</strong>
-                        <p className="text-slate-400 mt-0.5">LMS Interaktif dengan 4 jenis soal evaluasi: Pilihan Ganda, Kompleks, Asosiatif, Sebab-Akibat.</p>
-                      </div>
-                    </div>
+                      {/* Feature lists */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-8 border-t border-indigo-400/30">
+                        <div className="flex items-start gap-3">
+                          <div className="bg-white/20 p-1.5 rounded-lg shrink-0">
+                            <CheckCircle2 className="w-4 h-4 text-white" />
+                          </div>
+                          <div>
+                            <strong className="text-white font-bold text-sm block mb-0.5">Jurnal Digital Guru</strong>
+                            <p className="text-indigo-200 text-xs">Catat kehadiran dan topik KBM secara real-time.</p>
+                          </div>
+                        </div>
 
-                    <div className="flex items-start gap-2 text-xs">
-                      <CheckCircle2 className="w-5 h-5 text-indigo-600 flex-shrink-0" />
-                      <div>
-                        <strong className="text-slate-950 font-bold">Sistem Anti-Contek Native</strong>
-                        <p className="text-slate-400 mt-0.5">Deteksi blur window siswa otomatis mengirim log pelanggaran ke Spreadsheet.</p>
+                        <div className="flex items-start gap-3">
+                          <div className="bg-white/20 p-1.5 rounded-lg shrink-0">
+                            <CheckCircle2 className="w-4 h-4 text-white" />
+                          </div>
+                          <div>
+                            <strong className="text-white font-bold text-sm block mb-0.5">Materi Cloud</strong>
+                            <p className="text-indigo-200 text-xs">Akses bahan ajar dan PDF kapan saja, di mana saja.</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-start gap-3">
+                          <div className="bg-white/20 p-1.5 rounded-lg shrink-0">
+                            <CheckCircle2 className="w-4 h-4 text-white" />
+                          </div>
+                          <div>
+                            <strong className="text-white font-bold text-sm block mb-0.5">Ujian & Evaluasi CBT</strong>
+                            <p className="text-indigo-200 text-xs">LMS interaktif dengan 4 format soal komprehensif.</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-start gap-3">
+                          <div className="bg-white/20 p-1.5 rounded-lg shrink-0">
+                            <CheckCircle2 className="w-4 h-4 text-white" />
+                          </div>
+                          <div>
+                            <strong className="text-white font-bold text-sm block mb-0.5">Sistem Anti-Contek</strong>
+                            <p className="text-indigo-200 text-xs">Pemantauan fokus layar ujian secara native.</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Secure Login & Register Form */}
-                <div className="lg:col-span-5 bg-white border border-slate-200 shadow-lg rounded-3xl p-6 space-y-6">
+                  {/* Secure Login & Register Form (Right Side) */}
+                  <div className="lg:w-2/5 p-8 lg:p-12 bg-white flex flex-col justify-center space-y-6">
                   {/* Tab Selector */}
                   <div className="flex bg-slate-100 p-1.5 rounded-2xl">
                     <button
@@ -1000,8 +1021,8 @@ export default function App() {
                     </>
                   )}
                 </div>
-
               </div>
+            </div>
             )}
 
             {/* ADMIN PANEL MOUNTED */}
@@ -1012,8 +1033,8 @@ export default function App() {
                 classes={classes}
                 subjects={subjects}
                 journals={journals}
-                cheatLogs={cheatLogs}
                 submissions={submissions}
+                cheatLogs={cheatLogs}
                 registrations={registrations}
                 schoolConfig={schoolConfig}
                 onUpdateSchoolConfig={saveSchoolConfigState}
@@ -1025,6 +1046,9 @@ export default function App() {
                 onAddSubject={handleAddSubject}
                 onDeleteSubject={handleDeleteSubject}
                 onUpdateSubject={handleUpdateSubject}
+                globalAnnouncements={globalAnnouncements}
+                onAddGlobalAnnouncement={handleAddGlobalAnnouncement}
+                onDeleteGlobalAnnouncement={handleDeleteGlobalAnnouncement}
                 onAddStudent={handleAddStudent}
                 onDeleteStudent={handleDeleteStudent}
                 onUpdateTeacher={handleUpdateTeacher}
@@ -1032,6 +1056,7 @@ export default function App() {
                 onBulkAddStudents={handleBulkAddStudents}
                 onApproveRegistration={handleApproveRegistration}
                 onRejectRegistration={handleRejectRegistration}
+                onDeleteRegistration={handleDeleteRegistration}
               />
             )}
 
@@ -1075,6 +1100,7 @@ export default function App() {
                 currentStudent={activeUser}
                 materials={materials}
                 exams={exams}
+                submissions={submissions}
                 teachers={teachers}
                 subjects={subjects}
                 announcements={announcements}
@@ -1100,5 +1126,7 @@ export default function App() {
         </div>
       </footer>
     </div>
+    </>
+
   );
 }

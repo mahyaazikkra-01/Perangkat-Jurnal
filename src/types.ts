@@ -228,3 +228,20 @@ export interface ShareRequest {
 }
 
 
+
+export interface GlobalAnnouncement {
+  id: string;
+  title: string;
+  content: string;
+  targetRole: 'All' | 'Teacher' | 'Student';
+  createdAt: string;
+}
+
+export interface GlobalAnnouncement {
+  id: string;
+  title: string;
+  content: string;
+  targetRole: 'Teacher' | 'Student' | 'All';
+  priority: 'info' | 'penting' | 'mendesak';
+  createdAt: string;
+}

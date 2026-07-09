@@ -1,14 +1,15 @@
+import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import { 
-  Teacher, Student, ClassItem, SubjectItem, Material, JournalEntry, Exam, ExamQuestion, QuestionType, TeacherScheduleNote, TeacherAnnouncement, QuestionBank, ExamSubmission, ShareRequest
+  Teacher, Student, ClassItem, SubjectItem, Material, JournalEntry, Exam, ExamQuestion, QuestionType, TeacherScheduleNote, TeacherAnnouncement, QuestionBank, ExamSubmission, ShareRequest, CheatLog
 } from '../types';
 
 import { 
   BookOpen, Plus, Trash2, Calendar, FileText, ToggleLeft, ToggleRight, ListTodo, Key, Clock, HelpCircle, Save, Check,
-  FileSpreadsheet, Upload, AlertCircle, Clipboard, Download, Info, Printer, Filter, BarChart3, X, Settings, Building, UserCheck,
+  FileSpreadsheet, Upload, AlertCircle, Clipboard, Download, Info, Printer, Filter, BarChart3, X, Settings, Building, UserCheck, ShieldAlert,
   Edit3, Camera, User, Image, MapPin, Bell, Megaphone, AlertTriangle, Sparkles, Send, Database, CheckCircle, FileCode, Users
 } from 'lucide-react';
 
@@ -32,6 +33,7 @@ interface TeacherPanelProps {
   questionBanks?: QuestionBank[];
   journals: JournalEntry[];
   submissions?: ExamSubmission[];
+  cheatLogs?: CheatLog[];
   onSaveMaterial: (materi: Omit<Material, 'id' | 'createdAt'>) => void;
   onUpdateMaterial?: (materi: Material) => void;
   onToggleMaterial: (id: string, currentStatus: 'Aktif' | 'Draft') => void;
@@ -131,9 +133,10 @@ export default function TeacherPanel({
   onRespondShare,
   onSaveAnnouncement,
   onDeleteAnnouncement,
-  onToggleAnnouncement
+  onToggleAnnouncement,
+  cheatLogs = []
 }: TeacherPanelProps) {
-  const [activeTab, setActiveTab] = useState<'journal' | 'materials' | 'exams' | 'bank_soal' | 'daftar_nilai' | 'profile' | 'announcements'>('journal');
+  const [activeTab, setActiveTab] = useState<'journal' | 'materials' | 'exams' | 'bank_soal' | 'daftar_nilai' | 'profile' | 'announcements' | 'cheatlogs'>('journal');
 
   // --- 0. IDENTITAS SEKOLAH & KEPALA SEKOLAH STATE ---
   const [schoolIdentity, setSchoolIdentity] = useState<SchoolIdentityConfig>(() => {
@@ -166,7 +169,7 @@ export default function TeacherPanel({
     e.preventDefault();
     setSchoolIdentity(editIdentityForm);
     localStorage.setItem('smpn1beji_school_identity', JSON.stringify(editIdentityForm));
-    alert('Identitas Sekolah & Nama Kepala Sekolah berhasil diperbarui!');
+    toast('Identitas Sekolah & Nama Kepala Sekolah berhasil diperbarui!');
   };
 
   // --- 0.5. PROFILE & SCHEDULE STATE ---
@@ -384,7 +387,7 @@ export default function TeacherPanel({
     setAnnTitleInput('');
     setAnnContentInput('');
     setShowAddAnnModal(false);
-    alert('Notifikasi Catatan / Informasi berhasil dikirim kepada Siswa!');
+    toast('Notifikasi Catatan / Informasi berhasil dikirim kepada Siswa!');
   };
 
   const teacherAnnouncements = announcements.filter(a => {
@@ -439,12 +442,12 @@ export default function TeacherPanel({
   const handleSaveJournal = (e: React.FormEvent) => {
     e.preventDefault();
     if (!journalClass || !journalSubject || !journalTopic || !journalObjectives) {
-      alert('Mohon lengkapi data kelas, mapel, topik, dan tujuan pembelajaran!');
+      toast('Mohon lengkapi data kelas, mapel, topik, dan tujuan pembelajaran!');
       return;
     }
 
     if (journalStartPeriod > journalEndPeriod) {
-      alert('Jam mulai pembelajaran tidak boleh lebih besar dari jam selesai!');
+      toast('Jam mulai pembelajaran tidak boleh lebih besar dari jam selesai!');
       return;
     }
 
@@ -569,7 +572,7 @@ export default function TeacherPanel({
 
   const handleExportJournalRecap = (entries: JournalEntry[], filenameTitle: string) => {
     if (entries.length === 0) {
-      alert('Tidak ada data jurnal untuk diekspor!');
+      toast('Tidak ada data jurnal untuk diekspor!');
       return;
     }
 
@@ -626,7 +629,7 @@ export default function TeacherPanel({
 
   const generateAndOpenPrintWindow = (entriesToPrint: JournalEntry[], title: string, subtitle: string) => {
     if (entriesToPrint.length === 0) {
-      alert('Tidak ada data jurnal untuk dicetak!');
+      toast('Tidak ada data jurnal untuk dicetak!');
       return;
     }
 
@@ -899,7 +902,7 @@ export default function TeacherPanel({
 
     if (shareMateriTargetType === 'Teacher') {
       if (!shareMateriSelectedTeacher) {
-        alert('Pilih guru tujuan!');
+        toast('Pilih guru tujuan!');
         return;
       }
       if (onShareToTeacher) {
@@ -912,7 +915,7 @@ export default function TeacherPanel({
           itemTitle: sourceMat.title,
           status: 'Pending'
         });
-        alert('Permintaan berbagi berhasil dikirim ke guru yang bersangkutan. Menunggu persetujuan.');
+        toast('Permintaan berbagi berhasil dikirim ke guru yang bersangkutan. Menunggu persetujuan.');
         setShowShareMateriModal(false);
         setShareMateriId(null);
       }
@@ -920,7 +923,7 @@ export default function TeacherPanel({
     }
 
     if (shareMateriSelectedClasses.length === 0) {
-      alert('Pilih minimal 1 kelas!');
+      toast('Pilih minimal 1 kelas!');
       return;
     }
 
@@ -944,15 +947,15 @@ export default function TeacherPanel({
   const handleSaveMaterial = (e: React.FormEvent) => {
     e.preventDefault();
     if (!materiTitle || materiClasses.length === 0 || !materiSubject) {
-      alert('Mohon isi Judul Materi, Kelas, dan Mata Pelajaran.');
+      toast('Mohon isi Judul Materi, Kelas, dan Mata Pelajaran.');
       return;
     }
     if (materiType !== 'Article' && !materiUrl) {
-      alert('Mohon unggah berkas atau masukkan link materi.');
+      toast('Mohon unggah berkas atau masukkan link materi.');
       return;
     }
     if (materiType === 'Article' && (!materiContent || materiContent === '<p><br></p>')) {
-      alert('Mohon isi konten materi artikel.');
+      toast('Mohon isi konten materi artikel.');
       return;
     }
 
@@ -1069,7 +1072,7 @@ export default function TeacherPanel({
 
   const handleAddQuestionToExam = () => {
     if (!qText.trim()) {
-      alert('Teks pertanyaan tidak boleh kosong!');
+      toast('Teks pertanyaan tidak boleh kosong!');
       return;
     }
 
@@ -1157,7 +1160,7 @@ export default function TeacherPanel({
 
   const processRowsMatrix = (rows: string[][]) => {
     if (rows.length === 0) {
-      alert('Tidak ada baris data yang ditemukan!');
+      toast('Tidak ada baris data yang ditemukan!');
       return;
     }
 
@@ -1346,9 +1349,9 @@ export default function TeacherPanel({
       setExamQuestions(prev => [...prev, ...parsedQuestions]);
       setImportSuccessCount(successCount);
       setImportText(''); // reset text on success
-      alert(`Berhasil mengimpor ${successCount} butir soal dari spreadsheet!`);
+      toast(`Berhasil mengimpor ${successCount} butir soal dari spreadsheet!`);
     } else {
-      alert('Gagal mengimpor soal. Periksa format berkas/tabel dan coba lagi.');
+      toast('Gagal mengimpor soal. Periksa format berkas/tabel dan coba lagi.');
     }
 
     setImportErrors(errors);
@@ -1356,13 +1359,13 @@ export default function TeacherPanel({
 
   const handleImportFromSpreadsheet = () => {
     if (!importText.trim()) {
-      alert('Teks / data spreadsheet kosong!');
+      toast('Teks / data spreadsheet kosong!');
       return;
     }
 
     const lines = importText.split(/\r?\n/).filter(line => line.trim() !== '');
     if (lines.length === 0) {
-      alert('Tidak ada baris data yang ditemukan!');
+      toast('Tidak ada baris data yang ditemukan!');
       return;
     }
 
@@ -1392,7 +1395,7 @@ export default function TeacherPanel({
         
         processRowsMatrix(stringRows);
       } catch (err) {
-        alert('Gagal membaca berkas Excel. Pastikan berkas berformat .xls, .xlsx, atau .csv yang valid.');
+        toast('Gagal membaca berkas Excel. Pastikan berkas berformat .xls, .xlsx, atau .csv yang valid.');
         console.error(err);
       }
     };
@@ -1469,11 +1472,11 @@ export default function TeacherPanel({
   const handleSaveExam = (e: React.FormEvent) => {
     e.preventDefault();
     if (!examTitle || !examClass || !examSubject || !examToken) {
-      alert('Mohon lengkapi info paket ujian!');
+      toast('Mohon lengkapi info paket ujian!');
       return;
     }
     if (examQuestions.length === 0) {
-      alert('Paket ujian harus memiliki minimal 1 soal!');
+      toast('Paket ujian harus memiliki minimal 1 soal!');
       return;
     }
 
@@ -1503,7 +1506,7 @@ export default function TeacherPanel({
 
     if (shareQbTargetType === 'Teacher') {
       if (!shareQbSelectedTeacher) {
-        alert('Pilih guru tujuan!');
+        toast('Pilih guru tujuan!');
         return;
       }
       if (onShareToTeacher) {
@@ -1516,7 +1519,7 @@ export default function TeacherPanel({
           itemTitle: qb.title,
           status: 'Pending'
         });
-        alert('Permintaan berbagi berhasil dikirim ke guru yang bersangkutan. Menunggu persetujuan.');
+        toast('Permintaan berbagi berhasil dikirim ke guru yang bersangkutan. Menunggu persetujuan.');
         setShowShareQbModal(false);
         setShareQbId(null);
       }
@@ -1524,7 +1527,7 @@ export default function TeacherPanel({
     }
 
     if (shareSelectedClasses.length === 0) {
-      alert('Pilih minimal 1 kelas!');
+      toast('Pilih minimal 1 kelas!');
       return;
     }
     
@@ -1560,11 +1563,11 @@ export default function TeacherPanel({
   const handleSaveQuestionBankSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!qbTitle || !qbSubject) {
-      alert('Mohon lengkapi judul dan mapel Bank Soal!');
+      toast('Mohon lengkapi judul dan mapel Bank Soal!');
       return;
     }
     if (examQuestions.length === 0) {
-      alert('Bank Soal harus memiliki minimal 1 soal!');
+      toast('Bank Soal harus memiliki minimal 1 soal!');
       return;
     }
 
@@ -1595,6 +1598,8 @@ export default function TeacherPanel({
   const teacherExams = exams.filter(e => classes.some(c => c.id === e.classId));
   const teacherQuestionBanks = questionBanks.filter(qb => qb.teacherId === currentTeacher.id);
   const teacherSubmissions = submissions.filter(s => teacherExams.some(e => e.id === s.examId));
+  const teacherExamTitles = teacherExams.map(e => e.title);
+  const teacherCheatLogs = cheatLogs.filter(log => teacherExamTitles.includes(log.examTitle));
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto" id="teacher-panel-container">
@@ -1658,6 +1663,21 @@ export default function TeacherPanel({
             }`}
           >
             📊 Daftar Nilai
+          </button>
+          <button
+            onClick={() => setActiveTab('cheatlogs')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'cheatlogs'
+                ? 'bg-white text-indigo-950 shadow-xs'
+                : 'bg-indigo-800/40 text-indigo-100 hover:bg-indigo-800/60'
+            }`}
+          >
+            🚨 Log Anti-Contek
+            {teacherCheatLogs && teacherCheatLogs.length > 0 && (
+              <span className="ml-2 bg-red-500 text-white px-2 py-0.5 rounded-full text-[10px]">
+                {teacherCheatLogs.length}
+              </span>
+            )}
           </button>
           <button
             onClick={() => setActiveTab('bank_soal')}
@@ -2425,7 +2445,7 @@ export default function TeacherPanel({
                     setEditIdentityForm(defaults);
                     setSchoolIdentity(defaults);
                     localStorage.setItem('smpn1beji_school_identity', JSON.stringify(defaults));
-                    alert('Identitas berhasil dikembalikan ke standar awal SMPN 1 BEJI!');
+                    toast('Identitas berhasil dikembalikan ke standar awal SMPN 1 BEJI!');
                   }}
                   className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer self-start sm:self-center"
                 >
@@ -2771,14 +2791,12 @@ export default function TeacherPanel({
                       {onUpdateExam && (
                         <button 
                           onClick={() => {
-                            if (window.confirm('Reset token ujian ini?')) {
-                              const newToken = Math.random().toString(36).substring(2, 8).toUpperCase();
-                              onUpdateExam({
-                                ...exam,
-                                token: newToken
-                              });
-                              alert(`Token berhasil direset menjadi: ${newToken}`);
-                            }
+                            const newToken = Math.random().toString(36).substring(2, 8).toUpperCase();
+                            onUpdateExam({
+                              ...exam,
+                              token: newToken
+                            });
+                            toast(`Token berhasil direset menjadi: ${newToken}`);
                           }}
                           className="text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 p-2 rounded-lg transition flex-shrink-0 flex items-center gap-1.5 text-xs font-bold"
                           title="Reset Token Ujian"
@@ -3145,6 +3163,67 @@ export default function TeacherPanel({
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB CHEATLOGS */}
+      {activeTab === 'cheatlogs' && (
+        <div className="space-y-6 animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-red-100 text-red-600 rounded-xl">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-slate-900">Log Pelanggaran Siswa</h2>
+              <p className="text-sm text-slate-500">
+                Catatan otomatis siswa yang keluar dari aplikasi/tab saat ujian berlangsung.
+              </p>
+            </div>
+          </div>
+
+          {teacherCheatLogs.length === 0 ? (
+            <div className="text-center py-16 border border-dashed border-slate-200 rounded-3xl bg-white shadow-sm">
+              <ShieldAlert className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+              <p className="text-slate-500 font-medium">Belum ada pelanggaran yang tercatat pada ujian Anda.</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                      <th className="p-4 font-bold border-b border-slate-200">Waktu</th>
+                      <th className="p-4 font-bold border-b border-slate-200">Siswa</th>
+                      <th className="p-4 font-bold border-b border-slate-200">Kelas</th>
+                      <th className="p-4 font-bold border-b border-slate-200">Ujian</th>
+                      <th className="p-4 font-bold border-b border-slate-200">Pelanggaran</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {teacherCheatLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-slate-50 transition">
+                        <td className="p-4 text-slate-600 whitespace-nowrap">
+                          {new Date(log.timestamp).toLocaleString('id-ID')}
+                        </td>
+                        <td className="p-4">
+                          <p className="font-bold text-slate-900">{log.studentName}</p>
+                          <p className="text-xs text-slate-500">{log.studentNis}</p>
+                        </td>
+                        <td className="p-4 text-slate-700 font-medium">{log.className}</td>
+                        <td className="p-4 text-slate-700 font-medium">{log.examTitle}</td>
+                        <td className="p-4">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-red-100 text-red-700">
+                            <AlertCircle className="w-3.5 h-3.5" />
+                            {log.violationType}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
@@ -3927,7 +4006,7 @@ export default function TeacherPanel({
                             <button
                               onClick={() => {
                                 navigator.clipboard.writeText(res.token);
-                                alert(`Token Kelas ${res.className} berhasil disalin!`);
+                                toast(`Token Kelas ${res.className} berhasil disalin!`);
                               }}
                               className="p-2 text-indigo-600 hover:bg-indigo-200 bg-indigo-50 rounded-lg transition"
                               title="Salin Token"
@@ -4251,7 +4330,7 @@ export default function TeacherPanel({
                                 type="button"
                                 onClick={() => {
                                   setExamQuestions(prev => [...prev, ...qb.questions]);
-                                  alert(`Berhasil menambahkan ${qb.questions.length} soal dari ${qb.title}`);
+                                  toast(`Berhasil menambahkan ${qb.questions.length} soal dari ${qb.title}`);
                                 }}
                                 className="mt-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs py-1.5 px-3 rounded-lg w-full text-center transition cursor-pointer"
                               >
@@ -4360,7 +4439,7 @@ export default function TeacherPanel({
                               "PilihanAsosiatif\tPernyataan matriks ordo 2x2:\t(1) Determinan = 0\t(2) Memiliki invers\t(3) Matriks identitas\t(4) Matriks singular\t1,4\t15\tNone\t\tMono\n" +
                               "SebabAkibat\tContoh soal IPA fisika optik\tCahaya dapat mengalami polarisasi.\tCahaya merupakan gelombang transversal.\t\t\tBENAR,BENAR,YA\t10\tImage\thttps://picsum.photos/400/300\tSerif";
                             navigator.clipboard.writeText(mockHeader);
-                            alert("Template baris contoh berhasil disalin! Silakan tempel (Ctrl+V) ke Excel atau Google Sheets untuk latihan.");
+                            toast("Template baris contoh berhasil disalin! Silakan tempel (Ctrl+V) ke Excel atau Google Sheets untuk latihan.");
                           }}
                           className="px-2.5 py-1 bg-white text-slate-700 hover:bg-slate-100 rounded text-[10px] font-bold border border-slate-300 transition"
                         >
@@ -4621,7 +4700,7 @@ export default function TeacherPanel({
                     )}
                   </div>
                   <div>
-                    <label className="block text-xs font-bold mb-1 text-slate-700">Jenis Soal ANBK *</label>
+                    <label className="block text-xs font-bold mb-1 text-slate-700">Jenis Soal *</label>
                     <select
                       value={currentQType}
                       onChange={(e) => setCurrentQType(e.target.value as QuestionType)}
