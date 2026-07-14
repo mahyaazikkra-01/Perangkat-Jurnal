@@ -38,6 +38,7 @@ export interface Student {
   className?: string;
   password?: string;
   status?: 'Aktif' | 'Lulus' | 'Pindah';
+  noAbsen?: number;
   archivedAt?: string;
 }
 

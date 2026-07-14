@@ -1,80 +1,38 @@
 const fs = require('fs');
 let content = fs.readFileSync('src/components/AdminPanel.tsx', 'utf8');
 
-const badStartStr = "      )}          {/* Table list grouped by class */}";
-const badEndStr = "            </table>\n          </div>\n        </div>\n      )}\n\n      {/* ARCHIVED STUDENTS TAB */}";
+// Insert logic before filteredArchivedStudents
+const logicToInsert = `
+  const groupedStudents = useMemo(() => {
+    const groups = {};
+    classes.forEach(c => { groups[c.id] = []; });
+    groups['unassigned'] = [];
 
-const startIdx = content.indexOf(badStartStr);
-const endIdx = content.indexOf(badEndStr);
+    filteredStudents.forEach(s => {
+      if (s.classId && groups[s.classId]) {
+        groups[s.classId].push(s);
+      } else {
+        groups['unassigned'].push(s);
+      }
+    });
+    return groups;
+  }, [filteredStudents, classes]);
 
-if (startIdx !== -1 && endIdx !== -1) {
-  const toReplace = content.substring(startIdx, endIdx + "            </table>\n          </div>\n        </div>\n      )}\n".length);
+  const [expandedClasses, setExpandedClasses] = useState({});
 
-  const correctContent = `      )}
+  const toggleClass = (classId) => {
+    setExpandedClasses(prev => ({ ...prev, [classId]: !prev[classId] }));
+  };
 
-      {/* STUDENTS TAB */}
-      {activeTab === 'students' && (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-6 space-y-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <h3 className="font-bold text-slate-900 text-lg">Data Siswa Terdaftar</h3>
-              <p className="text-slate-500 text-xs">Kelola data seluruh siswa beserta kelasnya.</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => {
-                  setImportText('');
-                  setImportPreview([]);
-                  setShowImportModal(true);
-                }}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>Import Excel / CSV</span>
-              </button>
-              <button
-                onClick={() => {
-                  setPromoteFromClassId(classes[0]?.id || '');
-                  setPromoteToClassId(classes[1]?.id || 'LULUS');
-                  setShowBulkPromoteModal(true);
-                }}
-                className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs"
-              >
-                <ArrowRight className="w-4 h-4" />
-                <span>Naik Kelas / Lulus Masal</span>
-              </button>
-              <button
-                onClick={() => {
-                  setDeleteClassId(classes[0]?.id || '');
-                  setShowBulkDeleteModal(true);
-                }}
-                className="bg-red-600 hover:bg-red-700 text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>Hapus Per Kelas</span>
-              </button>
-              <button
-                onClick={() => setShowAddStudentModal(true)}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Tambah Siswa</span>
-              </button>
-            </div>
-          </div>
+  const filteredArchivedStudents`;
 
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-            <input
-              type="text"
-              placeholder="Cari siswa berdasarkan Nama, NIS, atau Kelas..."
-              value={searchStudent}
-              onChange={(e) => setSearchStudent(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
+content = content.replace("  const filteredArchivedStudents", logicToInsert);
 
-          {/* Table list grouped by class */}
+// Replace Table
+const oldTableStart = "          {/* Table list */}";
+const oldTableEnd = "          </div>\n        </div>\n      )}";
+
+const newTable = `          {/* Table list grouped by class */}
           <div className="space-y-4">
             {classes.map(cls => {
               const classStudents = groupedStudents[cls.id] || [];
@@ -264,12 +222,14 @@ if (startIdx !== -1 && endIdx !== -1) {
             )}
           </div>
         </div>
-      )}
-`;
-  
-  content = content.replace(toReplace, correctContent);
-  fs.writeFileSync('src/components/AdminPanel.tsx', content);
-  console.log("Successfully replaced the corrupted section.");
+      )}`;
+
+const oldTableMatch = content.substring(content.indexOf(oldTableStart), content.indexOf(oldTableEnd) + oldTableEnd.length);
+
+if (content.includes(oldTableStart)) {
+  content = content.replace(oldTableMatch, newTable);
 } else {
-  console.log("Could not find start or end idx", startIdx, endIdx);
+  console.log("Could not find table section");
 }
+
+fs.writeFileSync('src/components/AdminPanel.tsx', content);

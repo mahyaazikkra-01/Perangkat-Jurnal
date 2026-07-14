@@ -424,7 +424,12 @@ export default function TeacherPanel({
   });
 
   // Get active student lists matching selected class
-  const classStudents = students.filter(s => s.classId === journalClass);
+  const classStudents = students.filter(s => s.classId === journalClass).sort((a, b) => {
+    if (a.noAbsen != null && b.noAbsen != null) return a.noAbsen - b.noAbsen;
+    if (a.noAbsen != null) return -1;
+    if (b.noAbsen != null) return 1;
+    return (a.name || '').localeCompare(b.name || '');
+  });
 
   useEffect(() => {
     // Set default attendance for newly selected class
@@ -1957,6 +1962,7 @@ export default function TeacherPanel({
                       <table className="min-w-full divide-y divide-slate-200 text-xs text-left">
                         <thead className="bg-slate-50">
                           <tr>
+                            <th className="px-6 py-3 font-semibold text-slate-500 text-center w-20">No Absen</th>
                             <th className="px-6 py-3 font-semibold text-slate-500">Nama Siswa</th>
                             <th className="px-4 py-3 font-semibold text-slate-500 text-center w-24">Hadir</th>
                             <th className="px-4 py-3 font-semibold text-slate-500 text-center w-24">Sakit</th>
@@ -1967,6 +1973,7 @@ export default function TeacherPanel({
                         <tbody className="divide-y divide-slate-100 bg-white">
                           {classStudents.map(s => (
                             <tr key={s.id} className="hover:bg-slate-50/50 transition">
+                              <td className="px-6 py-3 font-bold text-slate-900 text-center">{s.noAbsen || '-'}</td>
                               <td className="px-6 py-3 font-bold text-slate-900">{s.name} <span className="text-[10px] text-slate-400 font-mono">({s.nis})</span></td>
                               <td className="px-4 py-3 text-center">
                                 <input
