@@ -462,113 +462,399 @@ export default function AdminPanel({
   );
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto" id="admin-panel-container">
-      {/* Navigation Sub-Header */}
-      <div className="flex border-b border-slate-200 overflow-x-auto gap-2 bg-white px-6 py-2 rounded-2xl shadow-xs">
+    <div className="flex flex-col lg:flex-row gap-6 max-w-7xl mx-auto" id="admin-panel-container">
+      {/* Navigation Sidebar */}
+      <div className="w-full lg:w-64 shrink-0">
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-4 sticky top-6 flex flex-col gap-1.5 overflow-y-auto max-h-[90vh] custom-scrollbar">
+          <div className="px-3 pb-3 mb-2 border-b border-slate-100">
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider">Menu Admin</h3>
+          </div>
         <button
           onClick={() => setActiveTab('dashboard')}
-          className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all whitespace-nowrap cursor-pointer ${
+          className={`w-full text-left px-4 py-3 text-sm font-bold rounded-xl transition-all flex items-center gap-3 cursor-pointer ${
             activeTab === 'dashboard'
-              ? 'bg-indigo-50 text-indigo-700'
-              : 'text-slate-600 hover:bg-slate-50'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+              : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600'
           }`}
         >
-          📊 Ringkasan Dasbor
+          <span className="text-lg">📊</span> Ringkasan Dasbor
         </button>
         <button
           onClick={() => setActiveTab('registrations')}
-          className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+          className={`w-full text-left px-4 py-3 text-sm font-bold rounded-xl transition-all flex items-center justify-between cursor-pointer ${
             activeTab === 'registrations'
-              ? 'bg-emerald-50 text-emerald-700'
-              : 'text-slate-600 hover:bg-slate-50'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+              : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600'
           }`}
         >
-          📋 Persetujuan Akun
+          <div className="flex items-center gap-3">
+            <span className="text-lg">📋</span> Persetujuan Akun
+          </div>
           {pendingCount > 0 && (
-            <span className="bg-emerald-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold animate-pulse">
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold animate-pulse ${activeTab === 'registrations' ? 'bg-white text-indigo-600' : 'bg-emerald-500 text-white'}`}>
               {pendingCount}
             </span>
           )}
         </button>
         <button
           onClick={() => setActiveTab('teachers')}
-          className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all whitespace-nowrap cursor-pointer ${
+          className={`w-full text-left px-4 py-3 text-sm font-bold rounded-xl transition-all flex items-center gap-3 cursor-pointer ${
             activeTab === 'teachers'
-              ? 'bg-indigo-50 text-indigo-700'
-              : 'text-slate-600 hover:bg-slate-50'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+              : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600'
           }`}
         >
-          🧑‍🏫 Data Guru Pengajar
+          <span className="text-lg">🧑‍🏫</span> Data Guru Pengajar
         </button>
         <button
           onClick={() => setActiveTab('students')}
-          className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all whitespace-nowrap cursor-pointer ${
+          className={`w-full text-left px-4 py-3 text-sm font-bold rounded-xl transition-all flex items-center gap-3 cursor-pointer ${
             activeTab === 'students'
-              ? 'bg-indigo-50 text-indigo-700'
-              : 'text-slate-600 hover:bg-slate-50'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+              : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600'
           }`}
         >
-          🎓 Data Siswa Terdaftar
+          <span className="text-lg">🎓</span> Data Siswa Terdaftar
         </button>
         <button
           onClick={() => setActiveTab('archived_students')}
-          className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all whitespace-nowrap cursor-pointer ${
+          className={`w-full text-left px-4 py-3 text-sm font-bold rounded-xl transition-all flex items-center gap-3 cursor-pointer ${
             activeTab === 'archived_students'
-              ? 'bg-slate-100 text-slate-800'
-              : 'text-slate-600 hover:bg-slate-50'
+              ? 'bg-slate-800 text-white shadow-md shadow-slate-300'
+              : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
           }`}
         >
-          📁 Data Alumni / Keluar
+          <span className="text-lg">📁</span> Data Alumni / Keluar
         </button>
         <button
           onClick={() => setActiveTab('journals')}
-          className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all whitespace-nowrap cursor-pointer ${
+          className={`w-full text-left px-4 py-3 text-sm font-bold rounded-xl transition-all flex items-center gap-3 cursor-pointer ${
             activeTab === 'journals'
-              ? 'bg-indigo-50 text-indigo-700'
-              : 'text-slate-600 hover:bg-slate-50'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+              : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600'
           }`}
         >
-          📝 Riwayat Jurnal Mengajar
+          <span className="text-lg">📝</span> Riwayat Jurnal Mengajar
         </button>
         <button
           onClick={() => setActiveTab('classes')}
-          className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all whitespace-nowrap cursor-pointer ${
+          className={`w-full text-left px-4 py-3 text-sm font-bold rounded-xl transition-all flex items-center gap-3 cursor-pointer ${
             activeTab === 'classes'
-              ? 'bg-indigo-50 text-indigo-700'
-              : 'text-slate-600 hover:bg-slate-50'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+              : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600'
           }`}
         >
-          🏫 Manajemen Kelas & Mapel
+          <span className="text-lg">🏫</span> Manajemen Kelas & Mapel
         </button>
         <button
           onClick={() => setActiveTab('cheatlogs')}
-          className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+          className={`w-full text-left px-4 py-3 text-sm font-bold rounded-xl transition-all flex items-center justify-between cursor-pointer ${
             activeTab === 'cheatlogs'
-              ? 'bg-red-50 text-red-700'
-              : 'text-slate-600 hover:bg-slate-50'
+              ? 'bg-red-600 text-white shadow-md shadow-red-200'
+              : 'text-slate-600 hover:bg-red-50 hover:text-red-600'
           }`}
         >
-          🛡️ Deteksi Anti-Contek
+          <div className="flex items-center gap-3">
+            <span className="text-lg">🛡️</span> Deteksi Anti-Contek
+          </div>
           {cheatLogs.length > 0 && (
-            <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold animate-pulse">
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold animate-pulse ${activeTab === 'cheatlogs' ? 'bg-white text-red-600' : 'bg-red-500 text-white'}`}>
               {cheatLogs.length}
             </span>
           )}
         </button>
         <button
           onClick={() => setActiveTab('config')}
-          className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+          className={`w-full text-left px-4 py-3 text-sm font-bold rounded-xl transition-all flex items-center gap-3 cursor-pointer ${
             activeTab === 'config'
-              ? 'bg-indigo-50 text-indigo-700'
-              : 'text-slate-600 hover:bg-slate-50'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+              : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600'
           }`}
         >
-          <MonitorSmartphone className="w-4 h-4" />
-          Pengaturan Tampilan
+          <span className="text-lg flex items-center justify-center w-[20px]"><MonitorSmartphone className="w-5 h-5" /></span> Pengaturan Tampilan
         </button>
+        </div>
       </div>
+      
+      <div className="flex-1 min-w-0">
+
+            {/* DASHBOARD TAB */}
+      {activeTab === 'dashboard' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-4">
+              <div className="bg-indigo-50 text-indigo-600 p-4 rounded-xl">
+                <Users className="w-8 h-8" />
+              </div>
+              <div>
+                <p className="text-sm text-slate-500 font-semibold mb-1">Total Siswa</p>
+                <h4 className="text-3xl font-extrabold text-slate-800">{students.length}</h4>
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-4">
+              <div className="bg-emerald-50 text-emerald-600 p-4 rounded-xl">
+                <UserCheck className="w-8 h-8" />
+              </div>
+              <div>
+                <p className="text-sm text-slate-500 font-semibold mb-1">Total Guru</p>
+                <h4 className="text-3xl font-extrabold text-slate-800">{teachers.length}</h4>
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-4">
+              <div className="bg-amber-50 text-amber-600 p-4 rounded-xl">
+                <GraduationCap className="w-8 h-8" />
+              </div>
+              <div>
+                <p className="text-sm text-slate-500 font-semibold mb-1">Total Kelas</p>
+                <h4 className="text-3xl font-extrabold text-slate-800">{classes.length}</h4>
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-4">
+              <div className="bg-blue-50 text-blue-600 p-4 rounded-xl">
+                <BookOpen className="w-8 h-8" />
+              </div>
+              <div>
+                <p className="text-sm text-slate-500 font-semibold mb-1">Total Mapel</p>
+                <h4 className="text-3xl font-extrabold text-slate-800">{subjects.length}</h4>
+              </div>
+            </div>
+            
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-4">
+              <div className="bg-rose-50 text-rose-600 p-4 rounded-xl">
+                <Calendar className="w-8 h-8" />
+              </div>
+              <div>
+                <p className="text-sm text-slate-500 font-semibold mb-1">Total Jurnal</p>
+                <h4 className="text-3xl font-extrabold text-slate-800">{journals.length}</h4>
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-4">
+              <div className="bg-teal-50 text-teal-600 p-4 rounded-xl">
+                <TrendingUp className="w-8 h-8" />
+              </div>
+              <div>
+                <p className="text-sm text-slate-500 font-semibold mb-1">Jurnal Hari Ini</p>
+                <h4 className="text-3xl font-extrabold text-slate-800">
+                  {journals.filter(j => new Date(j.timestamp).toDateString() === new Date().toDateString()).length}
+                </h4>
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-4">
+              <div className="bg-orange-50 text-orange-600 p-4 rounded-xl">
+                <Clock className="w-8 h-8" />
+              </div>
+              <div>
+                <p className="text-sm text-slate-500 font-semibold mb-1">Persetujuan Akun</p>
+                <h4 className="text-3xl font-extrabold text-slate-800">{pendingCount}</h4>
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-4">
+              <div className="bg-red-50 text-red-600 p-4 rounded-xl">
+                <ShieldAlert className="w-8 h-8" />
+              </div>
+              <div>
+                <p className="text-sm text-slate-500 font-semibold mb-1">Pelanggaran Ujian</p>
+                <h4 className="text-3xl font-extrabold text-slate-800">{cheatLogs.length}</h4>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TEACHERS TAB */}
+      {activeTab === 'teachers' && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-6 space-y-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h3 className="font-bold text-slate-900 text-lg">Data Guru Pengajar</h3>
+              <p className="text-slate-500 text-xs">Kelola data guru pengajar, mapel yang diampu, dan akses login.</p>
+            </div>
+            <div className="flex gap-2">
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input 
+                  type="text"
+                  placeholder="Cari guru..."
+                  value={searchTeacher}
+                  onChange={e => setSearchTeacher(e.target.value)}
+                  className="pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm w-full md:w-64 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-slate-50 focus:bg-white transition"
+                />
+              </div>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 flex items-center gap-2 rounded-xl text-sm font-bold shadow-xs transition cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                Tambah
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-sm text-left">
+              <thead className="bg-slate-50/50">
+                <tr>
+                  <th className="px-6 py-3 font-semibold text-slate-500">Nama Guru</th>
+                  <th className="px-6 py-3 font-semibold text-slate-500">NIP/NUPTK</th>
+                  <th className="px-6 py-3 font-semibold text-slate-500">Mata Pelajaran</th>
+                  <th className="px-6 py-3 font-semibold text-slate-500 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {teachers.filter(t => t.name.toLowerCase().includes(searchTeacher.toLowerCase()) || t.nip.toLowerCase().includes(searchTeacher.toLowerCase())).map((teacher) => (
+                  <tr key={teacher.id} className="hover:bg-slate-50 transition">
+                    <td className="px-6 py-3 font-bold text-slate-900">{teacher.name}</td>
+                    <td className="px-6 py-3 font-mono text-slate-600">{teacher.nip}</td>
+                    <td className="px-6 py-3 text-slate-600">{teacher.subject}</td>
+                    <td className="px-6 py-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => {
+                            setResetTargetUser({
+                              id: teacher.id,
+                              name: teacher.name,
+                              identifier: teacher.nip,
+                              role: 'Teacher',
+                              currentPass: teacher.password || teacher.email || teacher.nip,
+                              rawObject: teacher
+                            });
+                            setNewPasswordValue(teacher.password || teacher.email || teacher.nip);
+                            setShowResetPassModal(true);
+                          }}
+                          className="text-amber-600 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
+                          title="Reset Password Login Guru"
+                        >
+                          <KeyRound className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingTeacher(teacher);
+                            setShowEditTeacherModal(true);
+                          }}
+                          className="text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm('Yakin ingin menghapus guru ini?')) {
+                              onDeleteTeacher(teacher.id);
+                            }
+                          }}
+                          className="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {teachers.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-8 text-center text-slate-500 text-sm">
+                      Belum ada data guru.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* CONFIG TAB */}
+      {activeTab === 'config' && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-6 space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h3 className="font-bold text-slate-900 text-lg">Pengaturan Tampilan & Aplikasi</h3>
+              <p className="text-slate-500 text-xs">Sesuaikan nama sekolah, deskripsi, dan teks di seluruh aplikasi.</p>
+            </div>
+            {onUpdateSchoolConfig && (
+              <button 
+                onClick={() => onUpdateSchoolConfig(localConfig)}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 flex items-center gap-2 rounded-xl text-sm font-semibold transition shadow-xs cursor-pointer"
+              >
+                <CheckCircle className="w-4 h-4" />
+                Simpan Pengaturan
+              </button>
+            )}
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Aplikasi (Header)</label>
+                <input 
+                  type="text" 
+                  value={localConfig.headerAppName || ''} 
+                  onChange={e => setLocalConfig({...localConfig, headerAppName: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Subjudul (Header)</label>
+                <input 
+                  type="text" 
+                  value={localConfig.headerSubtitle || ''} 
+                  onChange={e => setLocalConfig({...localConfig, headerSubtitle: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Label Atas (Landing Page)</label>
+                <input 
+                  type="text" 
+                  value={localConfig.landingTopTag || ''} 
+                  onChange={e => setLocalConfig({...localConfig, landingTopTag: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">URL Logo (Opsional)</label>
+                <input 
+                  type="text" 
+                  value={localConfig.logoUrl || ''} 
+                  onChange={e => setLocalConfig({...localConfig, logoUrl: e.target.value})}
+                  placeholder="https://..."
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition"
+                />
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Judul Utama (Landing Page)</label>
+                <input 
+                  type="text" 
+                  value={localConfig.landingTitle || ''} 
+                  onChange={e => setLocalConfig({...localConfig, landingTitle: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Deskripsi Utama (Landing Page)</label>
+                <textarea 
+                  value={localConfig.landingDescription || ''} 
+                  onChange={e => setLocalConfig({...localConfig, landingDescription: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm h-24 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition"
+                ></textarea>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Teks Footer</label>
+                <input 
+                  type="text" 
+                  value={localConfig.footerText || ''} 
+                  onChange={e => setLocalConfig({...localConfig, footerText: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ANNOUNCEMENTS TAB */}
+
       {activeTab === 'announcements' && (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
@@ -689,7 +975,7 @@ export default function AdminPanel({
                   return !n.startsWith('VII') && !n.startsWith('VIII') && !n.startsWith('IX');
               }}
             ].map(grade => {
-              const gradeClasses = classes.filter(c => grade.match(c.name));
+              const gradeClasses = classes.filter(c => grade.match(c.name)).sort((a, b) => a.name.localeCompare(b.name));
               if (gradeClasses.length === 0) return null;
 
               // Calculate total students in this grade
@@ -2929,6 +3215,7 @@ export default function AdminPanel({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
