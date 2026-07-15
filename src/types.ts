@@ -40,6 +40,7 @@ export interface Student {
   status?: 'Aktif' | 'Lulus' | 'Pindah';
   noAbsen?: number;
   archivedAt?: string;
+  gender?: 'L' | 'P';
 }
 
 export interface Material {

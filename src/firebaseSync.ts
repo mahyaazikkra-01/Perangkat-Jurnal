@@ -32,9 +32,12 @@ export function syncCollection<T extends { id: string }>(
   });
 }
 
+// Helper to remove undefined values
+const stripUndefined = (obj: any) => JSON.parse(JSON.stringify(obj));
+
 export async function addDocument<T extends { id: string }>(collectionName: string, data: T) {
   const docRef = doc(db, collectionName, data.id);
-  await setDoc(docRef, data);
+  await setDoc(docRef, stripUndefined(data));
 }
 
 export async function deleteDocument(collectionName: string, id: string) {
@@ -44,7 +47,7 @@ export async function deleteDocument(collectionName: string, id: string) {
 
 export async function updateDocument<T extends { id: string }>(collectionName: string, data: T) {
   const docRef = doc(db, collectionName, data.id);
-  await setDoc(docRef, data, { merge: true });
+  await setDoc(docRef, stripUndefined(data), { merge: true });
 }
 
 export function syncConfig<T>(

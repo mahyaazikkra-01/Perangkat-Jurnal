@@ -109,7 +109,7 @@ export default function AdminPanel({
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
   const [showEditStudentModal, setShowEditStudentModal] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
-  const [newStudent, setNewStudent] = useState<{name: string, nis: string, email: string, classId: string, noAbsen?: number}>({
+  const [newStudent, setNewStudent] = useState<{name: string, nis: string, email: string, classId: string, noAbsen?: number, gender?: 'L' | 'P'}>({
     name: '',
     nis: '',
     email: '',
@@ -119,10 +119,11 @@ export default function AdminPanel({
   // States for student Excel/CSV Import and Bulk Promote
   const [showImportModal, setShowImportModal] = useState(false);
   const [importText, setImportText] = useState('');
-  const [importPreview, setImportPreview] = useState<Array<{ name: string; nis: string; email: string; classId: string; className: string }>>([]);
+  const [importPreview, setImportPreview] = useState<Array<{ name: string; nis: string; email: string; classId: string; className: string; noAbsen?: number; gender?: 'L' | 'P' }>>([]);
   const [showBulkPromoteModal, setShowBulkPromoteModal] = useState(false);
   const [promoteFromClassId, setPromoteFromClassId] = useState('');
   const [promoteToClassId, setPromoteToClassId] = useState('');
+  const [confirmModal, setConfirmModal] = useState<{isOpen: boolean, message: string, onConfirm: () => void}>({isOpen: false, message: '', onConfirm: () => {}});
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [deleteClassId, setDeleteClassId] = useState('');
 
@@ -142,14 +143,34 @@ export default function AdminPanel({
   const [resetTargetUser, setResetTargetUser] = useState<{ id: string; name: string; identifier: string; role: 'Teacher' | 'Student'; currentPass: string; rawObject: Teacher | Student } | null>(null);
   const [newPasswordValue, setNewPasswordValue] = useState('');
 
+  const sortedClasses = [...classes].sort((a, b) => {
+    const aMatch = a.name.match(/^(VII|VIII|IX|7|8|9)(.*)$/i);
+    const bMatch = b.name.match(/^(VII|VIII|IX|7|8|9)(.*)$/i);
+    
+    const getGradeLevel = (match: RegExpMatchArray | null) => {
+      if (!match) return 99;
+      const gradeStr = match[1].toUpperCase();
+      if (gradeStr === 'VII' || gradeStr === '7') return 7;
+      if (gradeStr === 'VIII' || gradeStr === '8') return 8;
+      if (gradeStr === 'IX' || gradeStr === '9') return 9;
+      return 99;
+    };
+    
+    const levelA = getGradeLevel(aMatch);
+    const levelB = getGradeLevel(bMatch);
+    
+    if (levelA !== levelB) return levelA - levelB;
+    return a.name.localeCompare(b.name);
+  });
+
   const handleDownloadTemplate = () => {
     const rows = [
-      { "No Absen": 1, "Nama Lengkap": "Budi Santoso", "NIS": "10260", "Email": "budi@smp.sch.id", "Kelas": "VII-A" },
-      { "No Absen": 2, "Nama Lengkap": "Siti Aminah", "NIS": "10261", "Email": "siti@smp.sch.id", "Kelas": "VII-A" },
-      { "No Absen": 3, "Nama Lengkap": "Dimas Anggara", "NIS": "10262", "Email": "dimas@smp.sch.id", "Kelas": "VII-A" }
+      { "No Absen": 1, "Nama Lengkap": "Budi Santoso", "NIS": "10260", "Email": "budi@smp.sch.id", "Kelas": "VII-A", "Jenis Kelamin (L/P)": "L" },
+      { "No Absen": 2, "Nama Lengkap": "Siti Aminah", "NIS": "10261", "Email": "siti@smp.sch.id", "Kelas": "VII-A", "Jenis Kelamin (L/P)": "P" },
+      { "No Absen": 3, "Nama Lengkap": "Dimas Anggara", "NIS": "10262", "Email": "dimas@smp.sch.id", "Kelas": "VII-A", "Jenis Kelamin (L/P)": "L" }
     ];
     const ws = XLSX.utils.json_to_sheet(rows);
-    ws['!cols'] = [{wch: 10}, {wch: 25}, {wch: 15}, {wch: 25}, {wch: 10}];
+    ws['!cols'] = [{wch: 10}, {wch: 25}, {wch: 15}, {wch: 25}, {wch: 10}, {wch: 20}];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Template Siswa');
     XLSX.writeFile(wb, 'template_import_siswa.xlsx');
@@ -170,7 +191,7 @@ export default function AdminPanel({
     // Check column format: "No Absen, Nama Lengkap, NIS, Email, Kelas" vs "Nama Lengkap, NIS, Email, Kelas"
     const isNoAbsenFirst = hasHeader && (headerLine.startsWith('no') || headerLine.startsWith('absen'));
 
-    const result: Array<{ name: string; nis: string; email: string; classId: string; className: string; noAbsen?: number }> = [];
+    const result: Array<{ name: string; nis: string; email: string; classId: string; className: string; noAbsen?: number; gender?: 'L' | 'P' }> = [];
 
     for (let i = startIndex; i < lines.length; i++) {
       let line = lines[i];
@@ -190,7 +211,7 @@ export default function AdminPanel({
       }
 
       if (parts.length >= 2) {
-        let noAbsen, name, nis, email, classNameInput;
+        let noAbsen, name, nis, email, classNameInput, genderInput;
 
         if (isNoAbsenFirst) {
           noAbsen = parseInt(parts[0]) || undefined;
@@ -198,19 +219,28 @@ export default function AdminPanel({
           nis = parts[2] || `${Math.floor(10000 + Math.random() * 90000)}`;
           email = parts[3] || `${nis}@smp.sch.id`;
           classNameInput = parts[4] || (classes[0]?.name || 'VII-A');
+          genderInput = parts[5];
         } else {
           name = parts[0] || `Siswa Baru ${i}`;
           nis = parts[1] || `${Math.floor(10000 + Math.random() * 90000)}`;
           email = parts[2] || `${nis}@smp.sch.id`;
           classNameInput = parts[3] || (classes[0]?.name || 'VII-A');
-          noAbsen = parseInt(parts[4]) || undefined; // If there is a 5th column, use it as noAbsen
+          noAbsen = parseInt(parts[4]) || undefined;
+          genderInput = parts[5];
+        }
+        
+        let gender: 'L' | 'P' | undefined;
+        if (genderInput) {
+          const g = genderInput.trim().toUpperCase();
+          if (g.startsWith('L')) gender = 'L';
+          else if (g.startsWith('P')) gender = 'P';
         }
 
         const matchedClass = classes.find(c => c.name.toLowerCase() === classNameInput.toLowerCase()) || classes[0];
         const classId = matchedClass ? matchedClass.id : 'class-1';
         const className = matchedClass ? matchedClass.name : classNameInput;
 
-        result.push({ name, nis, email, classId, className, noAbsen });
+        result.push({ name, nis, email, classId, className, noAbsen, gender });
       }
     }
     setImportPreview(result);
@@ -380,7 +410,9 @@ export default function AdminPanel({
         name: newStudent.name,
         nis: newStudent.nis,
         email: newStudent.email || `${newStudent.nis}@smp.sch.id`,
-        classId: newStudent.classId
+        classId: newStudent.classId,
+        noAbsen: newStudent.noAbsen,
+        gender: newStudent.gender
       });
     }
 
@@ -737,9 +769,11 @@ export default function AdminPanel({
                         </button>
                         <button
                           onClick={() => {
-                            if (window.confirm('Yakin ingin menghapus guru ini?')) {
-                              onDeleteTeacher(teacher.id);
-                            }
+                            setConfirmModal({
+                              isOpen: true,
+                              message: 'Yakin ingin menghapus guru ini?',
+                              onConfirm: () => onDeleteTeacher(teacher.id)
+                            });
                           }}
                           className="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
                         >
@@ -924,7 +958,7 @@ export default function AdminPanel({
               </button>
               <button
                 onClick={() => {
-                  setPromoteFromClassId(classes[0]?.id || '');
+                  setPromoteFromClassId('');
                   setPromoteToClassId(classes[1]?.id || 'LULUS');
                   setShowBulkPromoteModal(true);
                 }}
@@ -935,7 +969,7 @@ export default function AdminPanel({
               </button>
               <button
                 onClick={() => {
-                  setDeleteClassId(classes[0]?.id || '');
+                  setDeleteClassId('');
                   setShowBulkDeleteModal(true);
                 }}
                 className="bg-red-600 hover:bg-red-700 text-white font-semibold text-xs px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs"
@@ -1055,6 +1089,7 @@ export default function AdminPanel({
                                         <tr>
                                           <th className="px-5 py-2.5 font-semibold text-slate-500 text-center w-16">No</th>
                                           <th className="px-5 py-2.5 font-semibold text-slate-500">Nama Lengkap</th>
+                                          <th className="px-5 py-2.5 font-semibold text-slate-500 text-center">L/P</th>
                                           <th className="px-5 py-2.5 font-semibold text-slate-500">NIS (Pass)</th>
                                           <th className="px-5 py-2.5 font-semibold text-slate-500">Email</th>
                                           <th className="px-5 py-2.5 font-semibold text-slate-500 text-right">Aksi</th>
@@ -1065,6 +1100,7 @@ export default function AdminPanel({
                                           <tr key={siswa.id} className="hover:bg-slate-50/80 transition">
                                             <td className="px-5 py-2.5 font-bold text-slate-700 text-center">{siswa.noAbsen || '-'}</td>
                                             <td className="px-5 py-2.5 font-bold text-slate-900">{siswa.name}</td>
+                                            <td className="px-5 py-2.5 text-center text-slate-600 font-semibold">{siswa.gender || '-'}</td>
                                             <td className="px-5 py-2.5 font-mono font-medium text-slate-500">{siswa.nis}</td>
                                             <td className="px-5 py-2.5 text-slate-500 truncate max-w-[150px]">{siswa.email}</td>
                                             <td className="px-5 py-2.5 text-right">
@@ -1100,9 +1136,11 @@ export default function AdminPanel({
                                                 {onDeleteStudent && (
                                                   <button
                                                     onClick={() => {
-                                                      if(window.confirm('Yakin ingin menghapus siswa ini?')) {
-                                                        onDeleteStudent(siswa.id);
-                                                      }
+                                                      setConfirmModal({
+                                                        isOpen: true,
+                                                        message: 'Yakin ingin menghapus siswa ini?',
+                                                        onConfirm: () => onDeleteStudent(siswa.id)
+                                                      });
                                                     }}
                                                     className="text-red-500 hover:text-red-700 p-1.5 hover:bg-red-50 rounded-lg transition cursor-pointer"
                                                     title="Hapus Siswa"
@@ -1161,6 +1199,7 @@ export default function AdminPanel({
                           <tr>
                             <th className="px-6 py-3 font-semibold text-slate-500 text-center w-20">No Absen</th>
                             <th className="px-6 py-3 font-semibold text-slate-500">Nama Lengkap</th>
+                            <th className="px-6 py-3 font-semibold text-slate-500 text-center">L/P</th>
                             <th className="px-6 py-3 font-semibold text-slate-500">NIS (Password)</th>
                             <th className="px-6 py-3 font-semibold text-slate-500">Email</th>
                             <th className="px-6 py-3 font-semibold text-slate-500 text-right">Aksi</th>
@@ -1171,6 +1210,7 @@ export default function AdminPanel({
                             <tr key={siswa.id} className="hover:bg-slate-50 transition">
                               <td className="px-6 py-3 font-bold text-slate-900 text-center">{siswa.noAbsen || '-'}</td>
                               <td className="px-6 py-3 font-bold text-slate-900">{siswa.name}</td>
+                              <td className="px-6 py-3 text-center text-slate-600 font-semibold">{siswa.gender || '-'}</td>
                               <td className="px-6 py-3 font-mono font-semibold text-slate-600">{siswa.nis}</td>
                               <td className="px-6 py-3 text-slate-500">{siswa.email}</td>
                               <td className="px-6 py-3 text-right">
@@ -1274,6 +1314,7 @@ export default function AdminPanel({
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-6 py-3 font-semibold text-slate-500">Nama Lengkap</th>
+                  <th className="px-6 py-3 font-semibold text-slate-500 text-center">L/P</th>
                   <th className="px-6 py-3 font-semibold text-slate-500">NIS</th>
                   <th className="px-6 py-3 font-semibold text-slate-500">Riwayat Kelas</th>
                   <th className="px-6 py-3 font-semibold text-slate-500">Status</th>
@@ -1284,6 +1325,7 @@ export default function AdminPanel({
                 {filteredArchivedStudents.map((siswa) => (
                   <tr key={siswa.id} className="hover:bg-slate-50 transition opacity-80">
                     <td className="px-6 py-3 font-bold text-slate-900">{siswa.name}</td>
+                    <td className="px-6 py-3 text-center text-slate-600 font-semibold">{siswa.gender || '-'}</td>
                     <td className="px-6 py-3 font-mono font-semibold text-slate-600">{siswa.nis}</td>
                     <td className="px-6 py-3">
                       <span className="bg-slate-100 text-slate-700 font-bold px-2.5 py-0.5 rounded">
@@ -1567,7 +1609,7 @@ export default function AdminPanel({
 
             {/* Classes list */}
             <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
-              {classes.map((cls) => {
+              {sortedClasses.map((cls) => {
                 const studentCount = students.filter(s => s.classId === cls.id).length;
                 const isEditing = editingClass?.id === cls.id;
 
@@ -2259,13 +2301,26 @@ export default function AdminPanel({
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-500 bg-white"
                   >
                     <option value="">Pilih Kelas</option>
-                    {classes.map(cls => (
+                    {sortedClasses.map(cls => (
                       <option key={cls.id} value={cls.id}>{cls.name}</option>
                     ))}
                   </select>
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold mb-1 text-slate-700">Jenis Kelamin</label>
+                <select
+                  value={newStudent.gender || ''}
+                  onChange={(e) => setNewStudent(prev => ({ ...prev, gender: (e.target.value as 'L' | 'P') || undefined }))}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-500 bg-white"
+                >
+                  <option value="">Pilih Jenis Kelamin</option>
+                  <option value="L">Laki-laki (L)</option>
+                  <option value="P">Perempuan (P)</option>
+                </select>
+              </div>
+              
               <div>
                 <label className="block text-xs font-semibold mb-1 text-slate-700">Email Utama (Opsional)</label>
                 <input
@@ -2627,21 +2682,35 @@ export default function AdminPanel({
                     onChange={(e) => setEditingStudent({ ...editingStudent, classId: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-500 bg-white font-bold text-indigo-700"
                   >
-                    {classes.map(c => (
+                    {sortedClasses.map(c => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold mb-1 text-slate-700">Email Utama</label>
-                <input
-                  type="email"
-                  value={editingStudent.email}
-                  onChange={(e) => setEditingStudent({ ...editingStudent, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold mb-1 text-slate-700">Jenis Kelamin</label>
+                  <select
+                    value={editingStudent.gender || ''}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, gender: (e.target.value as 'L' | 'P') || undefined })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-500 bg-white"
+                  >
+                    <option value="">Pilih...</option>
+                    <option value="L">Laki-laki (L)</option>
+                    <option value="P">Perempuan (P)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1 text-slate-700">Email Utama</label>
+                  <input
+                    type="email"
+                    value={editingStudent.email}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-500 bg-white"
+                  />
+                </div>
               </div>
 
               <div>
@@ -2862,6 +2931,7 @@ export default function AdminPanel({
                       <tr>
                         <th className="px-3 py-2">No</th>
                         <th className="px-3 py-2">Nama Siswa</th>
+                        <th className="px-3 py-2">L/P</th>
                         <th className="px-3 py-2">NIS</th>
                         <th className="px-3 py-2">Email</th>
                         <th className="px-3 py-2">Terdeteksi Kelas</th>
@@ -2872,6 +2942,7 @@ export default function AdminPanel({
                         <tr key={idx} className="hover:bg-slate-50">
                           <td className="px-3 py-1.5 font-bold text-slate-400">{idx + 1}</td>
                           <td className="px-3 py-1.5 font-bold text-slate-800">{item.name}</td>
+                          <td className="px-3 py-1.5 font-bold text-slate-600">{item.gender || '-'}</td>
                           <td className="px-3 py-1.5 font-mono text-slate-600">{item.nis}</td>
                           <td className="px-3 py-1.5 text-slate-500">{item.email}</td>
                           <td className="px-3 py-1.5 font-bold text-emerald-700">{item.className}</td>
@@ -3067,7 +3138,8 @@ export default function AdminPanel({
                   onChange={(e) => setPromoteFromClassId(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 bg-white"
                 >
-                  {classes.map(c => (
+                  <option value="">-- Pilih Kelas Asal --</option>
+                  {sortedClasses.map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
@@ -3080,7 +3152,8 @@ export default function AdminPanel({
                   onChange={(e) => setPromoteToClassId(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold text-indigo-700 bg-white"
                 >
-                  {classes.filter(c => c.id !== promoteFromClassId).map(c => (
+                  <option value="">-- Pilih Tujuan --</option>
+                  {sortedClasses.filter(c => c.id !== promoteFromClassId).map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                   <option value="LULUS" className="font-extrabold text-amber-700">🎓 Lulus / Alumni (Keluarkan dari Kelas Aktif)</option>
@@ -3104,27 +3177,34 @@ export default function AdminPanel({
               </button>
               <button
                 type="button"
-                disabled={activeStudents.filter(s => s.classId === promoteFromClassId).length === 0}
+                disabled={activeStudents.filter(s => s.classId === promoteFromClassId).length === 0 || promoteToClassId === ''}
                 onClick={() => {
                   const targetStudents = activeStudents.filter(s => s.classId === promoteFromClassId);
                   if (targetStudents.length === 0) return;
 
-                  if (promoteToClassId === 'LULUS') {
-                    if (onUpdateStudent) {
-                      targetStudents.forEach(s => onUpdateStudent({...s, status: 'Lulus'}));
+                  const targetClassObj = classes.find(c => c.id === promoteToClassId);
+                  const actionName = promoteToClassId === 'LULUS' ? 'meluluskan' : `menaikkan kelas ke ${targetClassObj?.name}`;
+
+                  setConfirmModal({
+                    isOpen: true,
+                    message: `Anda yakin ingin ${actionName} untuk ${targetStudents.length} siswa ini?`,
+                    onConfirm: () => {
+                      if (promoteToClassId === 'LULUS') {
+                        if (onUpdateStudent) {
+                          targetStudents.forEach(s => onUpdateStudent({...s, status: 'Lulus'}));
+                        }
+                        toast(`Berhasil meluluskan / mengalihkan ${targetStudents.length} siswa ke status Alumni.`);
+                      } else {
+                        if (onUpdateStudent) {
+                          targetStudents.forEach(s => {
+                            onUpdateStudent({ ...s, classId: promoteToClassId });
+                          });
+                        }
+                        toast(`Berhasil menaikkan kelas ${targetStudents.length} siswa ke ${targetClassObj?.name}!`);
+                      }
+                      setShowBulkPromoteModal(false);
                     }
-                    toast(`Berhasil meluluskan / mengalihkan ${targetStudents.length} siswa ke status Alumni.`);
-                    setShowBulkPromoteModal(false);
-                  } else {
-                    const targetClassObj = classes.find(c => c.id === promoteToClassId);
-                    if (onUpdateStudent) {
-                      targetStudents.forEach(s => {
-                        onUpdateStudent({ ...s, classId: promoteToClassId });
-                      });
-                    }
-                    toast(`Berhasil menaikkan kelas ${targetStudents.length} siswa ke ${targetClassObj?.name}!`);
-                    setShowBulkPromoteModal(false);
-                  }
+                  });
                 }}
                 className={`px-4 py-2 rounded-lg transition cursor-pointer text-white shadow-xs ${
                   activeStudents.filter(s => s.classId === promoteFromClassId).length === 0
@@ -3138,6 +3218,35 @@ export default function AdminPanel({
           </div>
         </div>
       )}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4 z-[60] animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-sm w-full p-6 text-center space-y-4">
+            <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-2">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="font-bold text-slate-900 text-lg">Konfirmasi Hapus</h3>
+            <p className="text-sm text-slate-500">{confirmModal.message}</p>
+            <div className="flex gap-3 justify-center pt-2">
+              <button
+                onClick={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+                className="px-4 py-2 bg-slate-100 text-slate-700 font-semibold rounded-lg hover:bg-slate-200 transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  confirmModal.onConfirm();
+                  setConfirmModal({ ...confirmModal, isOpen: false });
+                }}
+                className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition cursor-pointer"
+              >
+                Ya, Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showBulkDeleteModal && (
         <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
@@ -3167,7 +3276,8 @@ export default function AdminPanel({
                   onChange={(e) => setDeleteClassId(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 bg-white"
                 >
-                  {classes.map(c => (
+                  <option value="">-- Pilih Kelas --</option>
+                  {sortedClasses.map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
@@ -3195,13 +3305,17 @@ export default function AdminPanel({
                   const targetStudents = activeStudents.filter(s => s.classId === deleteClassId);
                   if (targetStudents.length === 0) return;
                   
-                  if (window.confirm(`Anda yakin ingin menghapus ${targetStudents.length} siswa dari kelas ini?`)) {
-                    if (onDeleteStudent) {
-                      targetStudents.forEach(s => onDeleteStudent(s.id));
+                  setConfirmModal({
+                    isOpen: true,
+                    message: `Anda yakin ingin menghapus ${targetStudents.length} siswa dari kelas ini?`,
+                    onConfirm: () => {
+                      if (onDeleteStudent) {
+                        targetStudents.forEach(s => onDeleteStudent(s.id));
+                      }
+                      toast(`Berhasil menghapus ${targetStudents.length} siswa.`);
+                      setShowBulkDeleteModal(false);
                     }
-                    toast(`Berhasil menghapus ${targetStudents.length} siswa.`);
-                    setShowBulkDeleteModal(false);
-                  }
+                  });
                 }}
                 className={`px-4 py-2 rounded-lg transition cursor-pointer text-white shadow-xs ${
                   activeStudents.filter(s => s.classId === deleteClassId).length === 0
