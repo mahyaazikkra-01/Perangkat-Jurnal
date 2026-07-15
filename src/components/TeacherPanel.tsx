@@ -136,6 +136,26 @@ export default function TeacherPanel({
   onToggleAnnouncement,
   cheatLogs = []
 }: TeacherPanelProps) {
+  const sortedClasses = [...classes].sort((a, b) => {
+    const aMatch = a.name.match(/^(VII|VIII|IX|7|8|9)(.*)$/i);
+    const bMatch = b.name.match(/^(VII|VIII|IX|7|8|9)(.*)$/i);
+    
+    const getGradeLevel = (match: RegExpMatchArray | null) => {
+      if (!match) return 99;
+      const gradeStr = match[1].toUpperCase();
+      if (gradeStr === 'VII' || gradeStr === '7') return 7;
+      if (gradeStr === 'VIII' || gradeStr === '8') return 8;
+      if (gradeStr === 'IX' || gradeStr === '9') return 9;
+      return 99;
+    };
+    
+    const levelA = getGradeLevel(aMatch);
+    const levelB = getGradeLevel(bMatch);
+    
+    if (levelA !== levelB) return levelA - levelB;
+    return a.name.localeCompare(b.name);
+  });
+
   const [activeTab, setActiveTab] = useState<'journal' | 'materials' | 'exams' | 'bank_soal' | 'daftar_nilai' | 'profile' | 'announcements' | 'cheatlogs'>('journal');
 
   // --- 0. IDENTITAS SEKOLAH & KEPALA SEKOLAH STATE ---
@@ -224,8 +244,8 @@ export default function TeacherPanel({
         teacherId: currentTeacher.id,
         day: 'Senin',
         jamKe: 'Jam Ke 1 - 2 (2 Jam Pelajaran)',
-        classId: classes[0]?.id || 'c1',
-        className: classes[0]?.name || 'VII-A',
+        classId: sortedClasses[0]?.id || 'c1',
+        className: sortedClasses[0]?.name || 'VII-A',
         room: 'Ruang Kelas VII-A',
         note: 'Materi Pengantar & Absensi Sesi Pagi'
       },
@@ -234,8 +254,8 @@ export default function TeacherPanel({
         teacherId: currentTeacher.id,
         day: 'Rabu',
         jamKe: 'Jam Ke 3 - 4 (2 Jam Pelajaran)',
-        classId: classes[1]?.id || 'c2',
-        className: classes[1]?.name || 'VIII-A',
+        classId: sortedClasses[1]?.id || 'c2',
+        className: sortedClasses[1]?.name || 'VIII-A',
         room: 'Lab Komputer / Ruang Kelas',
         note: 'Latihan Soal & Diskusi Kelompok'
       }
@@ -303,7 +323,7 @@ export default function TeacherPanel({
     setSchedDay('Senin');
     setSchedJam('Jam Ke 1 - 2 (2 Jam Pelajaran)');
     setSelectedJams([1, 2]);
-    setSchedClass(classes[0]?.name || 'VII-A');
+    setSchedClass(sortedClasses[0]?.name || 'VII-A');
     setSchedRoom('Ruang Kelas');
     setSchedNote('');
     setShowScheduleModal(true);
@@ -364,7 +384,7 @@ export default function TeacherPanel({
   const [annTitleInput, setAnnTitleInput] = useState('');
   const [annContentInput, setAnnContentInput] = useState('');
   const [annTargetType, setAnnTargetType] = useState<'all' | 'class'>('all');
-  const [annTargetClass, setAnnTargetClass] = useState(classes[0]?.name || 'VII-A');
+  const [annTargetClass, setAnnTargetClass] = useState(sortedClasses[0]?.name || 'VII-A');
   const [annPriority, setAnnPriority] = useState<'normal' | 'penting' | 'mendesak'>('penting');
 
   const handleCreateAnnouncement = (e: React.FormEvent) => {
@@ -1838,7 +1858,7 @@ export default function TeacherPanel({
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
                     >
                       <option value="">Pilih Kelas</option>
-                      {classes.map(c => (
+                      {sortedClasses.map(c => (
                         <option key={c.id} value={c.id}>{c.name}</option>
                       ))}
                     </select>
@@ -2891,7 +2911,7 @@ export default function TeacherPanel({
               <div className="space-y-3">
                 <p className="text-sm font-bold text-slate-700">Pilih Kelas yang Anda Ajar:</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  {classes.map(c => {
+                  {sortedClasses.map(c => {
                     // Cek apakah guru punya materi atau ujian di kelas ini, atau tampilkan semua kelas saja
                     const classExamsCount = teacherExams.filter(e => Array.isArray(e.classId) ? e.classId.includes(c.id) : e.classId === c.id).length;
                     return (
@@ -3691,7 +3711,7 @@ export default function TeacherPanel({
                         <div className="col-span-2">
                           <label className="block text-xs font-semibold mb-1 text-slate-700">Untuk Kelas *</label>
                           <div className="flex flex-wrap gap-2">
-                            {classes.map(c => (
+                            {sortedClasses.map(c => (
                               <label key={c.id} className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border cursor-pointer transition ${materiClasses.includes(c.id) ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
                                 <input
                                   type="checkbox"
@@ -3925,7 +3945,7 @@ export default function TeacherPanel({
                       <>
                         <label className="block text-xs font-bold mb-2 text-slate-700">Pilih Kelas Tujuan *</label>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                          {classes.map(c => (
+                          {sortedClasses.map(c => (
                             <label key={c.id} className={`flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition ${shareMateriSelectedClasses.includes(c.id) ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
                               <input
                                 type="checkbox"
@@ -4072,7 +4092,7 @@ export default function TeacherPanel({
                       <>
                         <label className="block text-xs font-bold mb-2 text-slate-700">Pilih Kelas Tujuan *</label>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
-                          {classes.map(c => (
+                          {sortedClasses.map(c => (
                             <label key={c.id} className={`flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition ${shareSelectedClasses.includes(c.id) ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
                               <input
                                 type="checkbox"
@@ -4230,7 +4250,7 @@ export default function TeacherPanel({
                         className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-hidden"
                       >
                         <option value="">Pilih Kelas</option>
-                        {classes.map(c => (
+                        {sortedClasses.map(c => (
                           <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
                       </select>
@@ -5255,7 +5275,7 @@ export default function TeacherPanel({
                     className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
                   >
                     <option value="">-- Pilih Kelas --</option>
-                    {classes.map(c => (
+                    {sortedClasses.map(c => (
                       <option key={c.id} value={c.name}>{c.name}</option>
                     ))}
                     <option value="Ekstrakurikuler / Lainnya">Ekstrakurikuler / Lainnya</option>
@@ -5440,7 +5460,7 @@ export default function TeacherPanel({
                       onChange={(e) => setAnnTargetClass(e.target.value)}
                       className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-indigo-700 focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
                     >
-                      {classes.map(c => (
+                      {sortedClasses.map(c => (
                         <option key={c.id} value={c.name}>{c.name}</option>
                       ))}
                     </select>
