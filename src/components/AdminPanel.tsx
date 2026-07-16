@@ -497,7 +497,7 @@ export default function AdminPanel({
     <div className="flex flex-col lg:flex-row gap-6 max-w-7xl mx-auto" id="admin-panel-container">
       {/* Navigation Sidebar */}
       <div className="w-full lg:w-64 shrink-0">
-        <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-4 lg:sticky lg:top-6 flex flex-col gap-1.5 overflow-y-auto max-h-[90vh] custom-scrollbar z-10">
+        <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-4 lg:sticky lg:top-24 flex flex-col gap-1.5 overflow-y-auto max-h-[calc(100vh-8rem)] custom-scrollbar z-10">
           <div className="px-3 pb-3 mb-2 border-b border-slate-100">
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider">Menu Admin</h3>
           </div>

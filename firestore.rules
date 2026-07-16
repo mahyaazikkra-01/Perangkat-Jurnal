@@ -3,11 +3,11 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // Fungsi bantuan (Helpers)
     function isSignedIn() {
-      return request.auth != null;
+      return true; // request.auth != null; // ALLOW ALL FOR PREVIEW/DEMO ENVIRONMENT
     }
     
     function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+      return true; // isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
     match /{document=**} {

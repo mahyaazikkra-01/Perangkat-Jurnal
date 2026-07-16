@@ -4996,7 +4996,7 @@ export default function TeacherPanel({
 
             {/* RIGHT COLUMN: Nav & Review */}
             <div className="xl:col-span-4 space-y-6 lg:space-y-8">
-              <div className="sticky top-0 space-y-6 lg:space-y-8">
+              <div className="lg:sticky lg:top-24 space-y-6 lg:space-y-8 max-h-[calc(100vh-8rem)] overflow-y-auto custom-scrollbar">
                 {/* Question Navigation / Progress */}
                 <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 shadow-sm">
                   <div className="flex justify-between items-center mb-4">

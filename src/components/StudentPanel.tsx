@@ -1091,7 +1091,7 @@ export default function StudentPanel({
 
           {/* RIGHT SIDE - TIMERS & STATS */}
           <div className="lg:col-span-4 space-y-6">
-            <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm text-center space-y-4 sticky top-6">
+            <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm text-center space-y-4 lg:sticky lg:top-24">
               <span className="text-slate-400 font-bold text-xs uppercase tracking-wider block">Sisa Waktu Ujian</span>
               <span className="text-4xl font-mono font-black text-slate-900 tracking-tight block">
                 {formatTime(timerSeconds)}
