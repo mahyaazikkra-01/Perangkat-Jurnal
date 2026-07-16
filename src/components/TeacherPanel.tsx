@@ -53,6 +53,10 @@ interface TeacherPanelProps {
   onSaveAnnouncement?: (ann: Omit<TeacherAnnouncement, 'id' | 'createdAt'>) => void;
   onDeleteAnnouncement?: (id: string) => void;
   onToggleAnnouncement?: (id: string) => void;
+  scheduleNotes: TeacherScheduleNote[];
+  onSaveSchedule: (newSched: Omit<TeacherScheduleNote, 'id'>) => void;
+  onUpdateSchedule: (updatedSched: TeacherScheduleNote) => void;
+  onDeleteSchedule: (id: string) => void;
 }
 
 export function renderFormattedText(text: string, fontPreset?: 'Sans' | 'Serif' | 'Grotesk' | 'Mono') {
@@ -115,6 +119,7 @@ export default function TeacherPanel({
   questionBanks = [],
   journals,
   submissions = [],
+  cheatLogs = [],
   onSaveMaterial,
   onUpdateMaterial,
   onToggleMaterial,
@@ -134,8 +139,12 @@ export default function TeacherPanel({
   onSaveAnnouncement,
   onDeleteAnnouncement,
   onToggleAnnouncement,
-  cheatLogs = []
+  scheduleNotes,
+  onSaveSchedule,
+  onUpdateSchedule,
+  onDeleteSchedule
 }: TeacherPanelProps) {
+  const myScheduleNotes = (scheduleNotes || []).filter(n => n.teacherId === currentTeacher.id);
   const sortedClasses = [...classes].sort((a, b) => {
     const aMatch = a.name.match(/^(VII|VIII|IX|7|8|9)(.*)$/i);
     const bMatch = b.name.match(/^(VII|VIII|IX|7|8|9)(.*)$/i);
@@ -233,34 +242,7 @@ export default function TeacherPanel({
   };
 
   // Schedule Notes State
-  const [scheduleNotes, setScheduleNotes] = useState<TeacherScheduleNote[]>(() => {
-    const saved = localStorage.getItem(`gas_schedule_${currentTeacher.id}`);
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
-    }
-    return [
-      {
-        id: 'sch_1',
-        teacherId: currentTeacher.id,
-        day: 'Senin',
-        jamKe: 'Jam Ke 1 - 2 (2 Jam Pelajaran)',
-        classId: sortedClasses[0]?.id || 'c1',
-        className: sortedClasses[0]?.name || 'VII-A',
-        room: 'Ruang Kelas VII-A',
-        note: 'Materi Pengantar & Absensi Sesi Pagi'
-      },
-      {
-        id: 'sch_2',
-        teacherId: currentTeacher.id,
-        day: 'Rabu',
-        jamKe: 'Jam Ke 3 - 4 (2 Jam Pelajaran)',
-        classId: sortedClasses[1]?.id || 'c2',
-        className: sortedClasses[1]?.name || 'VIII-A',
-        room: 'Lab Komputer / Ruang Kelas',
-        note: 'Latihan Soal & Diskusi Kelompok'
-      }
-    ];
-  });
+  
 
   const parseJamsFromText = (text: string): number[] => {
     const rangeMatch = text.match(/Jam Ke\s*(\d+)\s*-\s*(\d+)/i);
@@ -346,18 +328,20 @@ export default function TeacherPanel({
 
     let updated: TeacherScheduleNote[];
     if (editingScheduleId) {
-      updated = scheduleNotes.map(n => n.id === editingScheduleId ? {
-        ...n,
-        day: schedDay,
-        jamKe: schedJam,
-        className: schedClass,
-        classId: classes.find(c => c.name === schedClass)?.id || schedClass,
-        room: schedRoom,
-        note: schedNote
-      } : n);
+      const targetNote = scheduleNotes.find(n => n.id === editingScheduleId);
+      if (targetNote) {
+        onUpdateSchedule({
+          ...targetNote,
+          day: schedDay,
+          jamKe: schedJam,
+          className: schedClass,
+          classId: classes.find(c => c.name === schedClass)?.id || schedClass,
+          room: schedRoom,
+          note: schedNote
+        });
+      }
     } else {
-      const newNode: TeacherScheduleNote = {
-        id: `sch_${Math.random().toString(36).substring(7)}`,
+      onSaveSchedule({
         teacherId: currentTeacher.id,
         day: schedDay,
         jamKe: schedJam,
@@ -365,18 +349,13 @@ export default function TeacherPanel({
         className: schedClass,
         room: schedRoom,
         note: schedNote
-      };
-      updated = [...scheduleNotes, newNode];
+      });
     }
-    setScheduleNotes(updated);
-    localStorage.setItem(`gas_schedule_${currentTeacher.id}`, JSON.stringify(updated));
     setShowScheduleModal(false);
   };
 
   const handleDeleteScheduleNote = (id: string) => {
-    const updated = scheduleNotes.filter(n => n.id !== id);
-    setScheduleNotes(updated);
-    localStorage.setItem(`gas_schedule_${currentTeacher.id}`, JSON.stringify(updated));
+    onDeleteSchedule(id);
   };
 
   // --- ANNOUNCEMENTS / NOTIFICATIONS STATE ---
@@ -3421,7 +3400,7 @@ export default function TeacherPanel({
             </div>
 
             {/* Grid Kartu Jadwal & Note */}
-            {scheduleNotes.filter(n => selectedDayFilter === 'Semua' || n.day === selectedDayFilter).length === 0 ? (
+            {myScheduleNotes.filter(n => selectedDayFilter === 'Semua' || n.day === selectedDayFilter).length === 0 ? (
               <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                 <Calendar className="w-12 h-12 text-slate-300 mx-auto mb-3" />
                 <h4 className="font-bold text-slate-700 text-sm">Belum Ada Catatan Jadwal Mengajar</h4>
@@ -3431,7 +3410,7 @@ export default function TeacherPanel({
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {scheduleNotes
+                {myScheduleNotes
                   .filter(n => selectedDayFilter === 'Semua' || n.day === selectedDayFilter)
                   .map((note) => (
                     <div

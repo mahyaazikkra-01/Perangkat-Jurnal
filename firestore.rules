@@ -72,6 +72,10 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isSignedIn();
     }
+    match /scheduleNotes/{noteId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
     match /config/{configId} {
       allow read: if true; // Config (logo sekolah dll) perlu dibaca publik saat login
       allow write: if isSignedIn();

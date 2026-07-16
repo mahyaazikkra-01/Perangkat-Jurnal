@@ -1,7 +1,7 @@
 import toast, { Toaster } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { 
-  Teacher, Student, ClassItem, SubjectItem, Material, JournalEntry, Exam, CheatLog, ExamSubmission, TeacherAnnouncement, RegistrationRequest, SchoolConfig, QuestionBank, ShareRequest, GlobalAnnouncement 
+  Teacher, Student, ClassItem, SubjectItem, Material, JournalEntry, Exam, CheatLog, ExamSubmission, TeacherAnnouncement, RegistrationRequest, SchoolConfig, QuestionBank, ShareRequest, GlobalAnnouncement, TeacherScheduleNote 
 } from './types';
 import AdminPanel from './components/AdminPanel';
 import TeacherPanel from './components/TeacherPanel';
@@ -278,6 +278,7 @@ export default function App() {
   const [globalAnnouncements, setGlobalAnnouncements] = useState<GlobalAnnouncement[]>([]);
   const [registrations, setRegistrations] = useState<RegistrationRequest[]>([]);
   const [schoolConfig, setSchoolConfig] = useState<SchoolConfig>(DEFAULT_SCHOOL_CONFIG);
+  const [scheduleNotes, setScheduleNotes] = useState<TeacherScheduleNote[]>([]);
 
   // Portal Tab & Registration Form states
   const [portalTab, setPortalTab] = useState<'login' | 'register'>('login');
@@ -303,6 +304,7 @@ export default function App() {
     const unsubQuestionBanks = syncCollection('questionBanks', setQuestionBanks, []);
     const unsubJournals = syncCollection('journals', setJournals, SEED_JOURNALS);
     const unsubCheatLogs = syncCollection('cheatLogs', setCheatLogs, []);
+    const unsubScheduleNotes = syncCollection('scheduleNotes', setScheduleNotes, []);
     const unsubSubmissions = syncCollection('submissions', setSubmissions, []);
     const unsubAnnouncements = syncCollection('announcements', setAnnouncements, SEED_ANNOUNCEMENTS);
     const unsubRegistrations = syncCollection('registrations', setRegistrations, SEED_REGISTRATIONS);
@@ -311,6 +313,7 @@ export default function App() {
     const unsubSchoolConfig = syncConfig('schoolConfig', setSchoolConfig, DEFAULT_SCHOOL_CONFIG);
 
     return () => {
+      unsubScheduleNotes();
       unsubTeachers();
       unsubStudents();
       unsubClasses();
@@ -515,6 +518,22 @@ export default function App() {
 
   const handleDeleteMaterial = (id: string) => {
     deleteDocument('materials', id);
+  };
+
+    const handleSaveSchedule = (newSched: Omit<TeacherScheduleNote, 'id'>) => {
+    const schedNode: TeacherScheduleNote = {
+      ...newSched,
+      id: `sch_${Math.random().toString(36).substring(7)}`
+    };
+    addDocument('scheduleNotes', schedNode);
+  };
+
+  const handleUpdateSchedule = (updatedSched: TeacherScheduleNote) => {
+    updateDocument('scheduleNotes', updatedSched);
+  };
+
+  const handleDeleteSchedule = (schedId: string) => {
+    deleteDocument('scheduleNotes', schedId);
   };
 
   const handleSaveExam = (newExam: Omit<Exam, 'id' | 'createdAt'>) => {
@@ -1138,6 +1157,10 @@ export default function App() {
                 onUpdateTeacher={handleUpdateTeacher}
                 onSaveAnnouncement={handleSaveAnnouncement}
                 onDeleteAnnouncement={handleDeleteAnnouncement}
+                scheduleNotes={scheduleNotes}
+                onSaveSchedule={handleSaveSchedule}
+                onUpdateSchedule={handleUpdateSchedule}
+                onDeleteSchedule={handleDeleteSchedule}
                 onToggleAnnouncement={handleToggleAnnouncement}
               />
             )}

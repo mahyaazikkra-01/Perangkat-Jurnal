@@ -667,7 +667,7 @@ export default function AdminPanel({
               <div>
                 <p className="text-sm text-slate-500 font-semibold mb-1">Jurnal Hari Ini</p>
                 <h4 className="text-3xl font-extrabold text-slate-800">
-                  {journals.filter(j => new Date(j.timestamp).toDateString() === new Date().toDateString()).length}
+                  {journals.filter(j => new Date(j.date).toDateString() === new Date().toDateString()).length}
                 </h4>
               </div>
             </div>
