@@ -79,7 +79,8 @@ export type QuestionType =
   | 'PilihanGanda' 
   | 'PilihanGandaKompleks' 
   | 'PilihanAsosiatif' 
-  | 'SebabAkibat';
+  | 'SebabAkibat'
+  | 'Uraian';
 
 export interface BaseQuestion {
   id: string;
@@ -124,11 +125,17 @@ export interface SebabAkibatQuestion extends BaseQuestion {
   correctCausality: boolean; // Apakah ada hubungan sebab-akibat?
 }
 
+export interface UraianQuestion extends BaseQuestion {
+  type: 'Uraian';
+  correctAnswer?: string; // Optional: Kunci jawaban atau rubrik untuk uraian
+}
+
 export type ExamQuestion = 
   | PilihanGandaQuestion 
   | PilihanGandaKompleksQuestion 
   | PilihanAsosiatifQuestion 
-  | SebabAkibatQuestion;
+  | SebabAkibatQuestion
+  | UraianQuestion;
 
 export interface QuestionBank {
   id: string;

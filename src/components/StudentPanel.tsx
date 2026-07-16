@@ -354,6 +354,13 @@ export default function StudentPanel({
             }
           }
           break;
+
+        case 'Uraian':
+          if (studentAns && String(studentAns).trim() !== '') {
+            isCorrect = true; // For now, assume filled means "answered" (grading can be manual later)
+            pointsEarned = 1; // Or partial score
+          }
+          break;
       }
 
       if (isCorrect) {
@@ -1016,6 +1023,17 @@ export default function StudentPanel({
                             );
                           })}
                         </div>
+                      </div>
+                    )}
+
+                    {q.type === 'Uraian' && (
+                      <div className="space-y-3 pl-8">
+                        <textarea
+                          placeholder="Ketikkan jawaban Anda di sini..."
+                          value={studentAnswers[q.id] || ''}
+                          onChange={(e) => handleSelectAnswer(q.id, e.target.value)}
+                          className="w-full h-32 px-4 py-3 border border-indigo-200 rounded-xl text-sm font-medium text-slate-800 bg-indigo-50/20 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden resize-y"
+                        />
                       </div>
                     )}
 

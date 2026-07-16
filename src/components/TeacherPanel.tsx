@@ -1077,6 +1077,7 @@ export default function TeacherPanel({
   const [saStatementTrue, setSaStatementTrue] = useState(false);
   const [saReasonTrue, setSaReasonTrue] = useState(true);
   const [saCausality, setSaCausality] = useState(false);
+  const [uraianAnswer, setUraianAnswer] = useState('');
 
   // Media & Score state for current question
   const [qFontPreset, setQFontPreset] = useState<'Sans' | 'Serif' | 'Grotesk' | 'Mono'>('Sans');
@@ -1148,7 +1149,7 @@ export default function TeacherPanel({
         fontPreset: qFontPreset,
         ...mediaObj
       };
-    } else {
+    } else if (currentQType === 'SebabAkibat') {
       // SebabAkibat
       questionNode = {
         id: questionId,
@@ -1159,6 +1160,16 @@ export default function TeacherPanel({
         correctStatementTrue: saStatementTrue,
         correctReasonTrue: saReasonTrue,
         correctCausality: saCausality,
+        score: qScore,
+        fontPreset: qFontPreset,
+        ...mediaObj
+      };
+    } else if (currentQType === 'Uraian') {
+      questionNode = {
+        id: questionId,
+        questionText: qText,
+        type: 'Uraian',
+        correctAnswer: uraianAnswer,
         score: qScore,
         fontPreset: qFontPreset,
         ...mediaObj
@@ -1845,7 +1856,7 @@ export default function TeacherPanel({
                       required
                       value={journalDate}
                       onChange={(e) => setJournalDate(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all outline-none"
                     />
                   </div>
 
@@ -3736,7 +3747,7 @@ export default function TeacherPanel({
                             required
                             value={materiSubject}
                             onChange={(e) => setMateriSubject(e.target.value)}
-                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-hidden"
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all outline-none"
                           >
                             <option value="">Pilih Mapel</option>
                             {subjects.map(s => (
@@ -4162,25 +4173,27 @@ export default function TeacherPanel({
 
       {/* MODAL ADD EXAM / QUESTION BANK & CUSTOM ANBK QUESTION BUILDER */}
       {(showAddExamModal || showAddQuestionBankModal) && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center sm:p-4 lg:p-6 z-50">
-          <div className="bg-slate-50 sm:rounded-[2rem] shadow-2xl w-full h-full max-w-[1800px] flex flex-col overflow-hidden animate-fade-in-up border border-white/20">
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center sm:p-4 lg:p-6 z-50">
+          <div className="bg-[#f8fafc] sm:rounded-[2rem] shadow-2xl w-full h-full max-w-[1800px] flex flex-col overflow-hidden animate-fade-in-up border border-indigo-500/20">
             <form onSubmit={isQuestionBankMode ? handleSaveQuestionBankSubmit : handleSaveExam} className="flex flex-col h-full w-full">
               {/* HEADER (Sticky) */}
-              <div className="bg-white px-6 lg:px-8 py-5 border-b border-slate-200 flex flex-col sm:flex-row justify-between sm:items-center gap-4 shrink-0 z-10 relative">
-                <div className="flex items-center gap-4">
-                  <div className={`p-3 rounded-2xl ${isQuestionBankMode ? 'bg-amber-100 text-amber-600' : 'bg-indigo-100 text-indigo-600'}`}>
-                    {isQuestionBankMode ? <Database className="w-6 h-6" /> : <FileText className="w-6 h-6" />}
+              <div className="bg-white/80 backdrop-blur-xl px-6 lg:px-10 py-6 border-b border-indigo-100 flex flex-col sm:flex-row justify-between sm:items-center gap-4 shrink-0 z-10 relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-indigo-50/50 to-transparent pointer-events-none" />
+                <div className="flex items-center gap-5 relative z-10">
+                  <div className={`p-3.5 rounded-2xl shadow-inner border ${isQuestionBankMode ? 'bg-gradient-to-br from-amber-100 to-orange-50 text-amber-600 border-amber-200' : 'bg-gradient-to-br from-indigo-100 to-purple-50 text-indigo-600 border-indigo-200'}`}>
+                    {isQuestionBankMode ? <Database className="w-7 h-7" /> : <FileText className="w-7 h-7" />}
                   </div>
                   <div>
-                    <h3 className="font-black text-slate-900 text-xl tracking-tight">
+                    <h3 className="font-black text-slate-900 text-2xl tracking-tight flex items-center gap-2">
                       {isQuestionBankMode ? (editingQbId ? 'Edit Bank Soal' : 'Buat Bank Soal Baru') : 'Pembuatan Paket Ujian'}
+                      {!isQuestionBankMode && <span className="bg-indigo-100 text-indigo-800 text-[10px] uppercase px-2 py-0.5 rounded-full font-bold border border-indigo-200 shadow-xs">Studio CBT</span>}
                     </h3>
-                    <p className="text-xs text-slate-500 font-medium mt-0.5">
-                      {isQuestionBankMode ? 'Koleksi butir soal untuk digunakan kembali.' : 'Rakit soal interaktif untuk dikerjakan siswa.'}
+                    <p className="text-sm text-slate-500 font-medium mt-1">
+                      {isQuestionBankMode ? 'Koleksi butir soal untuk digunakan kembali.' : 'Rakit soal interaktif untuk dikerjakan siswa dengan antarmuka modern.'}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 relative z-10">
                   <button
                     type="button"
                     onClick={() => {
@@ -4188,18 +4201,18 @@ export default function TeacherPanel({
                       setShowAddQuestionBankModal(false);
                       setEditingQbId(null);
                     }}
-                    className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 hover:text-slate-900 transition cursor-pointer flex items-center gap-2 shadow-xs"
+                    className="px-5 py-2.5 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all cursor-pointer flex items-center gap-2 shadow-xs"
                   >
-                    <X className="w-4 h-4" /> Tutup
+                    <X className="w-4 h-4" /> Batal
                   </button>
                   <button
                     type="submit"
                     disabled={examQuestions.length === 0}
-                    className={`px-6 py-2.5 text-white font-bold rounded-xl disabled:opacity-50 transition cursor-pointer flex items-center gap-2 shadow-md ${
-                      isQuestionBankMode ? 'bg-amber-600 hover:bg-amber-700' : 'bg-indigo-600 hover:bg-indigo-700'
+                    className={`px-8 py-2.5 text-white font-bold rounded-xl disabled:opacity-50 transition-all cursor-pointer flex items-center gap-2 shadow-lg shadow-indigo-200/50 hover:shadow-indigo-300/50 ${
+                      isQuestionBankMode ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600' : 'bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700'
                     }`}
                   >
-                    <Save className="w-4 h-4" /> {isQuestionBankMode ? 'Simpan Bank Soal' : 'Simpan Paket Ujian'}
+                    <Save className="w-4 h-4" /> {isQuestionBankMode ? 'Simpan Bank Soal' : 'Simpan Ujian'}
                   </button>
                 </div>
               </div>
@@ -4211,10 +4224,13 @@ export default function TeacherPanel({
                   <div className="xl:col-span-8 space-y-6 lg:space-y-8">
                     
                     {/* Exam / QB Config */}
-                    <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm">
+                    <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
                       <div className="flex items-center gap-3 border-b border-slate-100 pb-4 mb-6">
-                        <Settings className="w-5 h-5 text-slate-400" />
-                        <h4 className="font-extrabold text-slate-900 text-sm tracking-wide uppercase">Pengaturan Dasar</h4>
+                        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                          <Settings className="w-5 h-5" />
+                        </div>
+                        <h4 className="font-black text-slate-900 text-sm tracking-widest uppercase">Pengaturan Dasar</h4>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-6 gap-5">
                 <div className="md:col-span-2">
@@ -4225,7 +4241,7 @@ export default function TeacherPanel({
                     placeholder={isQuestionBankMode ? "Contoh: Bank Soal Matematika K-13" : "Contoh: Penilaian Harian Aljabar"}
                     value={isQuestionBankMode ? qbTitle : examTitle}
                     onChange={(e) => isQuestionBankMode ? setQbTitle(e.target.value) : setExamTitle(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all outline-none"
                   />
                 </div>
                 <div>
@@ -4236,7 +4252,7 @@ export default function TeacherPanel({
                     required
                     value={targetQuestionCount}
                     onChange={(e) => setTargetQuestionCount(Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all outline-none"
                   />
                 </div>
                 {!isQuestionBankMode && (
@@ -4247,7 +4263,7 @@ export default function TeacherPanel({
                         required
                         value={examClass}
                         onChange={(e) => setExamClass(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-hidden"
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all outline-none"
                       >
                         <option value="">Pilih Kelas</option>
                         {sortedClasses.map(c => (
@@ -4263,7 +4279,7 @@ export default function TeacherPanel({
                         placeholder="E.g. ALJB99"
                         value={examToken}
                         onChange={(e) => setExamToken(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm uppercase"
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm uppercase focus:bg-white focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all outline-none font-bold text-indigo-700 tracking-wider"
                       />
                     </div>
                     <div>
@@ -4273,7 +4289,7 @@ export default function TeacherPanel({
                         required
                         value={examDuration}
                         onChange={(e) => setExamDuration(Number(e.target.value))}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all outline-none"
                       />
                     </div>
                   </>
@@ -4285,7 +4301,7 @@ export default function TeacherPanel({
                       required
                       value={qbSubject}
                       onChange={(e) => setQbSubject(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all outline-none"
                     >
                       <option value="">Pilih Mapel</option>
                       {subjects.map(s => (
@@ -4304,7 +4320,7 @@ export default function TeacherPanel({
                     required
                     value={examSubject}
                     onChange={(e) => setExamSubject(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all outline-none"
                   >
                     <option value="">Pilih Mapel</option>
                     {subjects.map(s => (
@@ -4737,6 +4753,7 @@ export default function TeacherPanel({
                       <option value="PilihanGandaKompleks">2. Pilihan Ganda Kompleks (Multi)</option>
                       <option value="PilihanAsosiatif">3. Pilihan Asosiatif (Kombinasi 1,2,3,4)</option>
                       <option value="SebabAkibat">4. Pilihan Sebab-Akibat</option>
+                      <option value="Uraian">5. Uraian (Esai)</option>
                     </select>
                   </div>
                 </div>
@@ -5007,9 +5024,10 @@ export default function TeacherPanel({
                 </div>
 
                 {/* QUESTIONS LIST REVIEW */}
-                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8 flex flex-col" style={{ maxHeight: 'calc(100vh - 350px)' }}>
-                  <h4 className="font-extrabold text-slate-800 text-sm tracking-wide uppercase mb-4 shrink-0">
-                    Daftar Soal Terbuat ({examQuestions.length} Butir)
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/50 p-6 sm:p-8 flex flex-col relative overflow-hidden" style={{ maxHeight: 'calc(100vh - 350px)' }}>
+                  <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-amber-400 to-orange-500" />
+                  <h4 className="font-black text-slate-900 text-sm tracking-widest uppercase mb-4 shrink-0 mt-2 flex items-center gap-2">
+                    <Database className="w-4 h-4 text-amber-500" /> Daftar Soal Terbuat ({examQuestions.length} Butir)
                   </h4>
                   
                   <div className="flex-1 overflow-y-auto pr-2 space-y-3">
