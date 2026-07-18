@@ -1149,6 +1149,7 @@ export default function App() {
                 classes={classes}
                 subjects={subjects}
                 journals={journals}
+                questionBanks={questionBanks}
                 submissions={submissions}
                 cheatLogs={cheatLogs}
                 registrations={registrations}

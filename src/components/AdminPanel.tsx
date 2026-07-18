@@ -2,14 +2,17 @@ import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import toast from 'react-hot-toast';
 import React, { useState, useRef, useMemo } from 'react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType } from 'docx';
 import { db } from '../firebase';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { 
-  Teacher, Student, ClassItem, SubjectItem, JournalEntry, CheatLog, ExamSubmission, RegistrationRequest, SchoolConfig, GlobalAnnouncement, TeachingModule 
+  Teacher, Student, ClassItem, SubjectItem, JournalEntry, CheatLog, ExamSubmission, RegistrationRequest, SchoolConfig, GlobalAnnouncement, TeachingModule, QuestionBank
 } from '../types';
 import { 
   Users, BookOpen, GraduationCap, Calendar, Plus, Trash2, Search, Upload, ShieldAlert, Award, ArrowUpRight, UserCheck, Clock, CheckCircle, XCircle, Edit, Settings, FileSpreadsheet, Download, ArrowRight, KeyRound, MonitorSmartphone, BarChart, TrendingUp, FileText
-, Send, ArrowLeft, Folder, X, Printer } from 'lucide-react';
+, Send, ArrowLeft, Folder, X, Printer, Database } from 'lucide-react';
 
 interface AdminPanelProps {
   teachers: Teacher[];
@@ -17,6 +20,7 @@ interface AdminPanelProps {
   classes: ClassItem[];
   subjects: SubjectItem[];
   journals: JournalEntry[];
+  questionBanks?: QuestionBank[];
   teachingModules?: TeachingModule[];
   cheatLogs: CheatLog[];
   submissions: ExamSubmission[];
@@ -51,6 +55,7 @@ export default function AdminPanel({
   classes,
   subjects,
   journals,
+  questionBanks = [],
   cheatLogs,
   submissions,
   registrations = [],
@@ -172,7 +177,220 @@ export default function AdminPanel({
     }
   };
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'teachers' | 'students' | 'journals' | 'teaching_modules' | 'cheatlogs' | 'classes' | 'registrations' | 'config' | 'archived_students' | 'announcements'>('dashboard');
+  const handleDownloadBankSoal = (bank: QuestionBank) => {
+    try {
+      const rows = bank.questions.map((q, index) => {
+        let optionsDetail = '-';
+        let answerStr = '-';
+
+        if (q.type === 'PilihanGanda') {
+          optionsDetail = q.options.map((opt, i) => `${String.fromCharCode(65 + i)}. ${opt}`).join('\n');
+          answerStr = q.correctAnswer;
+        } else if (q.type === 'PilihanGandaKompleks') {
+          optionsDetail = q.options.join('\n');
+          answerStr = q.correctAnswers.join(', ');
+        } else if (q.type === 'PilihanAsosiatif') {
+          optionsDetail = q.statements.join('\n');
+          answerStr = q.correctCombination.join(', ');
+        } else if (q.type === 'SebabAkibat') {
+          optionsDetail = `Pernyataan: ${q.statement}\nAlasan: ${q.reason}`;
+          answerStr = `Pernyataan Benar: ${q.correctStatementTrue}, Alasan Benar: ${q.correctReasonTrue}, Sebab-Akibat: ${q.correctCausality}`;
+        } else if (q.type === 'Uraian') {
+          answerStr = q.correctAnswer || '-';
+        }
+
+        // strip html tags for cleaner excel output if you want, but simple strip is ok for now.
+        const stripHtml = (html: string) => {
+          const doc = new DOMParser().parseFromString(html, 'text/html');
+          return doc.body.textContent || "";
+        };
+
+        return {
+          'No': index + 1,
+          'Tipe Soal': q.type,
+          'Teks Soal': stripHtml(q.questionText),
+          'Detail Pilihan/Pernyataan': optionsDetail,
+          'Kunci Jawaban': answerStr,
+        };
+      });
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      
+      // Auto-size columns slightly
+      ws['!cols'] = [
+        { wch: 5 }, // No
+        { wch: 20 }, // Tipe
+        { wch: 50 }, // Soal
+        { wch: 50 }, // Detail
+        { wch: 30 }, // Kunci
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Soal');
+      XLSX.writeFile(wb, `Bank_Soal_${bank.title.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`);
+      toast.success(`Bank Soal ${bank.title} berhasil diunduh (Excel)`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Terjadi kesalahan saat mengunduh Bank Soal');
+    }
+  };
+
+  const handleDownloadBankSoalPDF = (bank: QuestionBank) => {
+    try {
+      const doc = new jsPDF();
+      
+      doc.setFontSize(16);
+      doc.text(`Bank Soal: ${bank.title}`, 14, 22);
+      
+      doc.setFontSize(11);
+      doc.text(`Guru: ${getTeacherName(bank.teacherId)} | Mapel: ${getSubjectName(bank.subjectId)}`, 14, 30);
+      
+      const rows = bank.questions.map((q, index) => {
+        let optionsDetail = '-';
+        let answerStr = '-';
+
+        if (q.type === 'PilihanGanda') {
+          optionsDetail = q.options.map((opt, i) => `${String.fromCharCode(65 + i)}. ${opt}`).join('\n');
+          answerStr = q.correctAnswer;
+        } else if (q.type === 'PilihanGandaKompleks') {
+          optionsDetail = q.options.join('\n');
+          answerStr = q.correctAnswers.join(', ');
+        } else if (q.type === 'PilihanAsosiatif') {
+          optionsDetail = q.statements.join('\n');
+          answerStr = q.correctCombination.join(', ');
+        } else if (q.type === 'SebabAkibat') {
+          optionsDetail = `Pernyataan: ${q.statement}\nAlasan: ${q.reason}`;
+          answerStr = `P: ${q.correctStatementTrue}, A: ${q.correctReasonTrue}, S-A: ${q.correctCausality}`;
+        } else if (q.type === 'Uraian') {
+          answerStr = q.correctAnswer || '-';
+        }
+
+        const stripHtml = (html: string) => {
+          const d = new DOMParser().parseFromString(html, 'text/html');
+          return d.body.textContent || "";
+        };
+
+        return [
+          index + 1,
+          q.type,
+          stripHtml(q.questionText),
+          optionsDetail,
+          answerStr
+        ];
+      });
+
+      autoTable(doc, {
+        startY: 40,
+        head: [['No', 'Tipe', 'Soal', 'Detail Pilihan', 'Jawaban']],
+        body: rows,
+        styles: { fontSize: 9, cellPadding: 2 },
+        columnStyles: {
+          0: { cellWidth: 10 },
+          1: { cellWidth: 25 },
+          2: { cellWidth: 60 },
+          3: { cellWidth: 60 },
+          4: { cellWidth: 25 },
+        },
+      });
+
+      doc.save(`Bank_Soal_${bank.title.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
+      toast.success(`Bank Soal ${bank.title} berhasil diunduh (PDF)`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Terjadi kesalahan saat mengunduh PDF');
+    }
+  };
+
+  const handleDownloadBankSoalDOCX = async (bank: QuestionBank) => {
+    try {
+      const stripHtml = (html: string) => {
+        const d = new DOMParser().parseFromString(html, 'text/html');
+        return d.body.textContent || "";
+      };
+
+      const tableRows = [
+        new TableRow({
+          children: [
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "No", bold: true })] })], width: { size: 5, type: WidthType.PERCENTAGE } }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Tipe Soal", bold: true })] })], width: { size: 15, type: WidthType.PERCENTAGE } }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Teks Soal", bold: true })] })], width: { size: 35, type: WidthType.PERCENTAGE } }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Detail Pilihan/Pernyataan", bold: true })] })], width: { size: 30, type: WidthType.PERCENTAGE } }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Kunci Jawaban", bold: true })] })], width: { size: 15, type: WidthType.PERCENTAGE } }),
+          ],
+        })
+      ];
+
+      bank.questions.forEach((q, index) => {
+        let optionsDetail = '-';
+        let answerStr = '-';
+
+        if (q.type === 'PilihanGanda') {
+          optionsDetail = q.options.map((opt, i) => `${String.fromCharCode(65 + i)}. ${opt}`).join('\n');
+          answerStr = q.correctAnswer;
+        } else if (q.type === 'PilihanGandaKompleks') {
+          optionsDetail = q.options.join('\n');
+          answerStr = q.correctAnswers.join(', ');
+        } else if (q.type === 'PilihanAsosiatif') {
+          optionsDetail = q.statements.join('\n');
+          answerStr = q.correctCombination.join(', ');
+        } else if (q.type === 'SebabAkibat') {
+          optionsDetail = `Pernyataan: ${q.statement}\nAlasan: ${q.reason}`;
+          answerStr = `P: ${q.correctStatementTrue}, A: ${q.correctReasonTrue}, S-A: ${q.correctCausality}`;
+        } else if (q.type === 'Uraian') {
+          answerStr = q.correctAnswer || '-';
+        }
+
+        tableRows.push(new TableRow({
+          children: [
+            new TableCell({ children: [new Paragraph(String(index + 1))] }),
+            new TableCell({ children: [new Paragraph(q.type)] }),
+            new TableCell({ children: [new Paragraph(stripHtml(q.questionText))] }),
+            new TableCell({ children: optionsDetail.split('\n').map(line => new Paragraph(line)) }),
+            new TableCell({ children: [new Paragraph(answerStr)] }),
+          ]
+        }));
+      });
+
+      const table = new Table({
+        rows: tableRows,
+        width: { size: 100, type: WidthType.PERCENTAGE }
+      });
+
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: [
+            new Paragraph({
+              children: [new TextRun({ text: `Bank Soal: ${bank.title}`, bold: true, size: 32 })],
+              spacing: { after: 200 }
+            }),
+            new Paragraph({
+              children: [new TextRun({ text: `Guru: ${getTeacherName(bank.teacherId)} | Mapel: ${getSubjectName(bank.subjectId)}`, size: 24 })],
+              spacing: { after: 400 }
+            }),
+            table
+          ],
+        }],
+      });
+
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Bank_Soal_${bank.title.replace(/[^a-zA-Z0-9]/g, '_')}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast.success(`Bank Soal ${bank.title} berhasil diunduh (DOCX)`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Terjadi kesalahan saat mengunduh DOCX');
+    }
+  };
+
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'teachers' | 'students' | 'journals' | 'teaching_modules' | 'cheatlogs' | 'classes' | 'registrations' | 'config' | 'archived_students' | 'announcements' | 'bank_soal'>('dashboard');
   const [showAddAnnModal, setShowAddAnnModal] = useState(false);
   const [newAnn, setNewAnn] = useState({ title: '', content: '', targetRole: 'All' as 'All' | 'Teacher' | 'Student' });
   const pendingCount = (registrations || []).filter(r => r.status === 'Pending').length;
@@ -860,6 +1078,16 @@ export default function AdminPanel({
           }`}
         >
           <span className="text-lg">📑</span> Data Perangkat Pembelajaran
+        </button>
+        <button
+          onClick={() => setActiveTab('bank_soal')}
+          className={`w-full text-left px-4 py-3 text-sm font-bold rounded-xl transition-all flex items-center gap-3 cursor-pointer ${
+            activeTab === 'bank_soal'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+              : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600'
+          }`}
+        >
+          <span className="text-lg flex items-center justify-center w-[20px]"><Database className="w-5 h-5" /></span> Bank Soal Guru
         </button>
         <button
           onClick={() => setActiveTab('classes')}
@@ -1995,6 +2223,74 @@ export default function AdminPanel({
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* BANK SOAL TAB */}
+      {activeTab === 'bank_soal' && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-6 space-y-6">
+          <div>
+            <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2">
+              <Database className="w-5 h-5 text-indigo-600" />
+              Bank Soal Guru Mapel
+            </h3>
+            <p className="text-slate-500 text-xs">Pusat repositori Bank Soal yang telah dibuat oleh semua Guru Mata Pelajaran.</p>
+          </div>
+
+          {questionBanks.length === 0 ? (
+            <div className="text-center py-12 border border-dashed border-slate-200 rounded-2xl">
+              <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Database className="w-8 h-8 text-slate-300" />
+              </div>
+              <p className="text-slate-500 font-medium">Belum ada data Bank Soal.</p>
+              <p className="text-slate-400 text-xs">Bank Soal akan muncul di sini setelah guru membuatnya.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {questionBanks.map((qb) => {
+                const teacherName = getTeacherName(qb.teacherId);
+                const subjectName = getSubjectName(qb.subjectId);
+                return (
+                  <div key={qb.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col gap-2">
+                    <div className="flex justify-between items-start">
+                      <h4 className="font-bold text-slate-800 line-clamp-2">{qb.title}</h4>
+                      <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full whitespace-nowrap">
+                        {qb.questions?.length || 0} Soal
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500 space-y-1 mt-1">
+                      <p className="flex items-center gap-1.5"><UserCheck className="w-3.5 h-3.5" /> Guru: <strong>{teacherName}</strong></p>
+                      <p className="flex items-center gap-1.5"><BookOpen className="w-3.5 h-3.5" /> Mapel: {subjectName}</p>
+                      <p className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Dibuat: {new Date(qb.createdAt).toLocaleDateString('id-ID')}</p>
+                    </div>
+                    <div className="mt-2 pt-3 border-t border-slate-200 flex justify-end gap-2">
+                      <button
+                        onClick={() => handleDownloadBankSoal(qb)}
+                        className="px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5"
+                        title="Unduh format Excel"
+                      >
+                        <Download className="w-3.5 h-3.5" /> Excel
+                      </button>
+                      <button
+                        onClick={() => handleDownloadBankSoalPDF(qb)}
+                        className="px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5"
+                        title="Unduh format PDF"
+                      >
+                        <Download className="w-3.5 h-3.5" /> PDF
+                      </button>
+                      <button
+                        onClick={() => handleDownloadBankSoalDOCX(qb)}
+                        className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5"
+                        title="Unduh format DOCX"
+                      >
+                        <Download className="w-3.5 h-3.5" /> Word
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
