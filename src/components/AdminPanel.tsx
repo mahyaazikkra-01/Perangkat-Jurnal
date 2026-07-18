@@ -1,12 +1,15 @@
 import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
 import toast from 'react-hot-toast';
 import React, { useState, useRef, useMemo } from 'react';
+import { db } from '../firebase';
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { 
-  Teacher, Student, ClassItem, SubjectItem, JournalEntry, CheatLog, ExamSubmission, RegistrationRequest, SchoolConfig, GlobalAnnouncement 
+  Teacher, Student, ClassItem, SubjectItem, JournalEntry, CheatLog, ExamSubmission, RegistrationRequest, SchoolConfig, GlobalAnnouncement, TeachingModule 
 } from '../types';
 import { 
-  Users, BookOpen, GraduationCap, Calendar, Plus, Trash2, Search, Upload, ShieldAlert, Award, ArrowUpRight, UserCheck, Clock, CheckCircle, XCircle, Edit, Settings, FileSpreadsheet, Download, ArrowRight, KeyRound, MonitorSmartphone, BarChart, TrendingUp
-} from 'lucide-react';
+  Users, BookOpen, GraduationCap, Calendar, Plus, Trash2, Search, Upload, ShieldAlert, Award, ArrowUpRight, UserCheck, Clock, CheckCircle, XCircle, Edit, Settings, FileSpreadsheet, Download, ArrowRight, KeyRound, MonitorSmartphone, BarChart, TrendingUp, FileText
+, Send, ArrowLeft, Folder, X, Printer } from 'lucide-react';
 
 interface AdminPanelProps {
   teachers: Teacher[];
@@ -14,6 +17,7 @@ interface AdminPanelProps {
   classes: ClassItem[];
   subjects: SubjectItem[];
   journals: JournalEntry[];
+  teachingModules?: TeachingModule[];
   cheatLogs: CheatLog[];
   submissions: ExamSubmission[];
   registrations?: RegistrationRequest[];
@@ -38,6 +42,7 @@ interface AdminPanelProps {
   globalAnnouncements?: GlobalAnnouncement[];
   onAddGlobalAnnouncement?: (ann: Omit<GlobalAnnouncement, 'id' | 'createdAt'>) => void;
   onDeleteGlobalAnnouncement?: (id: string) => void;
+  onShareToTeacher?: (req: any) => void;
 }
 
 export default function AdminPanel({
@@ -49,6 +54,7 @@ export default function AdminPanel({
   cheatLogs,
   submissions,
   registrations = [],
+  teachingModules = [],
   schoolConfig,
   onUpdateSchoolConfig,
   onAddTeacher,
@@ -69,12 +75,134 @@ export default function AdminPanel({
   onDeleteRegistration,
   globalAnnouncements = [],
   onAddGlobalAnnouncement,
-  onDeleteGlobalAnnouncement
+  onDeleteGlobalAnnouncement,
+  onShareToTeacher
 }: AdminPanelProps) {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'teachers' | 'students' | 'journals' | 'cheatlogs' | 'classes' | 'registrations' | 'config' | 'archived_students' | 'announcements'>('dashboard');
+
+  const handleDownloadFolder = async (folder: TeachingModule) => {
+    toast.loading('Mengompres folder, mohon tunggu...', { id: 'download-folder' });
+    try {
+      const zip = new JSZip();
+      
+      const addFilesToZip = async (currentFolderId: string, currentZipFolder: JSZip) => {
+        const children = (teachingModules || []).filter(m => m.parentId === currentFolderId);
+        for (const child of children) {
+          if (child.type === 'folder') {
+            const newZipFolder = currentZipFolder.folder(child.title);
+            if (newZipFolder) {
+              await addFilesToZip(child.id, newZipFolder);
+            }
+          } else {
+            // It's a file
+            if (child.fileUrl === 'CHUNKED') {
+              const q = query(collection(db, 'teachingModuleChunks'), where('moduleId', '==', child.id), orderBy('chunkIndex'));
+              const snap = await getDocs(q);
+              let base64 = '';
+              snap.forEach(doc => {
+                base64 += doc.data().data;
+              });
+              if (base64) {
+                // Remove the data URL prefix e.g. "data:application/pdf;base64,"
+                const base64Data = base64.split(';base64,').pop();
+                if (base64Data) {
+                  currentZipFolder.file(child.fileName, base64Data, { base64: true });
+                }
+              }
+            } else if (child.fileUrl) {
+              // Not chunked, fetch if possible or just skip if we can't fetch cross-origin
+              try {
+                const response = await fetch(child.fileUrl);
+                const blob = await response.blob();
+                currentZipFolder.file(child.fileName, blob);
+              } catch (e) {
+                console.warn('Could not fetch file for zip: ', child.fileUrl);
+              }
+            }
+          }
+        }
+      };
+
+      await addFilesToZip(folder.id, zip);
+      const content = await zip.generateAsync({ type: 'blob' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(content);
+      a.download = `${folder.title}.zip`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast.success('Berhasil diunduh', { id: 'download-folder' });
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal mengunduh folder', { id: 'download-folder' });
+    }
+  };
+
+  const handleDownloadModule = async (mod: TeachingModule) => {
+    if (mod.type === 'folder') {
+      return handleDownloadFolder(mod);
+    }
+
+    if (mod.fileUrl !== 'CHUNKED') {
+      const a = document.createElement('a');
+      a.href = mod.fileUrl;
+      a.download = mod.fileName;
+      a.click();
+      return;
+    }
+    
+    toast.loading('Mengunduh file...', { id: 'download-mod' });
+    try {
+      const q = query(collection(db, 'teachingModuleChunks'), where('moduleId', '==', mod.id), orderBy('chunkIndex'));
+      const snap = await getDocs(q);
+      let base64 = '';
+      snap.forEach(doc => {
+        base64 += doc.data().data;
+      });
+      if (base64) {
+        const a = document.createElement('a');
+        a.href = base64;
+        a.download = mod.fileName;
+        a.click();
+        toast.success('Berhasil diunduh', { id: 'download-mod' });
+      } else {
+        toast.error('File tidak ditemukan', { id: 'download-mod' });
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal mengunduh', { id: 'download-mod' });
+    }
+  };
+
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'teachers' | 'students' | 'journals' | 'teaching_modules' | 'cheatlogs' | 'classes' | 'registrations' | 'config' | 'archived_students' | 'announcements'>('dashboard');
   const [showAddAnnModal, setShowAddAnnModal] = useState(false);
   const [newAnn, setNewAnn] = useState({ title: '', content: '', targetRole: 'All' as 'All' | 'Teacher' | 'Student' });
   const pendingCount = (registrations || []).filter(r => r.status === 'Pending').length;
+
+  // Folder and Share states for Teaching Modules
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [showShareModuleModal, setShowShareModuleModal] = useState(false);
+  const [shareModuleId, setShareModuleId] = useState<string | null>(null);
+  const [shareModuleTargetTeacher, setShareModuleTargetTeacher] = useState<string>('');
+  
+  const handleShareModuleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!shareModuleId || !shareModuleTargetTeacher) return;
+    const mod = teachingModules.find(m => m.id === shareModuleId);
+    if (!mod) return;
+    onShareToTeacher?.({
+      itemId: mod.id,
+      itemType: 'TeachingModule',
+      itemTitle: mod.title,
+      receiverId: shareModuleTargetTeacher,
+      senderId: 'admin',
+      senderName: 'Admin',
+      status: 'Pending'
+    });
+    toast.success('Berhasil dikirim ke guru tujuan!');
+    setShowShareModuleModal(false);
+    setShareModuleId(null);
+    setShareModuleTargetTeacher('');
+  };
+
   
   // State for config editing
   const [localConfig, setLocalConfig] = useState<SchoolConfig>(schoolConfig || {
@@ -458,9 +586,164 @@ export default function AdminPanel({
     if (a.noAbsen != null) return -1;
     if (b.noAbsen != null) return 1;
     // Finally, sort by name
-    return (a.name || '').localeCompare(b.name || '');
+  
+
+
+  return (a.name || '').localeCompare(b.name || '');
   });
 
+
+  const exportClassExcel = (classId: string, className: string, studentsList: Student[]) => {
+    if (studentsList.length === 0) {
+      toast.error('Tidak ada siswa di kelas ini.');
+      return;
+    }
+    
+    const aoa = [
+      ['DAFTAR NAMA AKUN BELAJAR'],
+      ['SMPN 1 BEJI'],
+      [`Kelas: ${className}`],
+      [],
+      ['No', 'Nama Lengkap', 'L/P', 'NIS (User)', 'Email (Pass)']
+    ];
+
+    studentsList.forEach((s, idx) => {
+      aoa.push([
+        (idx + 1).toString(),
+        s.name,
+        s.gender || '-',
+        s.nis,
+        s.email || '-'
+      ]);
+    });
+
+    const worksheet = XLSX.utils.aoa_to_sheet(aoa);
+    worksheet['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } }
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Data Siswa');
+    XLSX.writeFile(workbook, `Data_Siswa_${className.replace(/\s+/g, '_')}.xlsx`);
+  };
+
+  const printClassDocument = (classId: string, className: string, studentsList: Student[]) => {
+    if (studentsList.length === 0) {
+      toast.error('Tidak ada siswa di kelas ini.');
+      return;
+    }
+    
+    const rows = studentsList.map((s, idx) => `
+      <tr>
+        <td style="text-align:center;">${idx + 1}</td>
+        <td><b>${s.name}</b></td>
+        <td style="text-align:center;">${s.gender || '-'}</td>
+        <td style="text-align:center;">${s.nis}</td>
+        <td>${s.email || '-'}</td>
+      </tr>
+    `).join('');
+
+    const htmlDocument = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Cetak Data Siswa</title>
+        <style>
+          @page { size: A4 portrait; margin: 0; }
+          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e293b; margin: 0; padding: 0; background: white; }
+          
+          /* Spacers for repeating margins */
+          .spacer-top { height: 15mm; }
+          .spacer-bottom { height: 15mm; }
+          
+          .content-wrapper { padding: 0 15mm; }
+
+          .header { text-align: center; border-bottom: 3px double #0f172a; padding-bottom: 12px; margin-bottom: 20px; }
+          .header h1 { font-size: 22px; margin: 0; text-transform: uppercase; color: #1e3a8a; letter-spacing: 1px; line-height: 1.15; }
+          .header h2 { font-size: 22px; color: #2563eb; font-weight: 900; margin: 4px 0 0 0; letter-spacing: 1px; line-height: 1.15; }
+          .header-divider { width: 60px; height: 4px; background-color: #3b82f6; margin: 8px auto; border-radius: 2px; }
+          .header h3 { font-size: 15px; margin: 0; color: #475569; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.15; }
+          
+          .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+          .data-table thead { display: table-header-group; }
+          .data-table tr { page-break-inside: avoid; }
+          .data-table th, .data-table td { border: 1px solid #94a3b8; padding: 8px 10px; }
+          .data-table th { background-color: #f1f5f9; color: #0f172a; font-weight: bold; text-align: left; font-size: 12px; }
+          
+          .btn-print { background: #4f46e5; color: white; border: none; padding: 10px 20px; font-weight: bold; border-radius: 6px; cursor: pointer; font-size: 14px; margin-bottom: 20px; }
+          
+          .print-footer { position: fixed; bottom: 5mm; left: 15mm; right: 15mm; text-align: center; font-size: 11px; color: #64748b; padding-top: 5px; border-top: 1px solid #e2e8f0; }
+          
+          /* Main structural table that ensures margins on every page */
+          .layout-table { width: 100%; border-collapse: collapse; border: none; }
+          .layout-table > thead > tr > td, .layout-table > tbody > tr > td, .layout-table > tfoot > tr > td { border: none; padding: 0; }
+
+          @media print {
+            .no-print { display: none; }
+          }
+          @media screen {
+            .print-footer { display: none; }
+            body { padding: 20px; }
+            .spacer-top, .spacer-bottom { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="no-print" style="text-align:right; padding: 0 15mm;">
+          <button class="btn-print" onclick="window.print()">🖨️ Cetak / Simpan PDF</button>
+        </div>
+
+        <table class="layout-table">
+          <thead>
+            <tr><td><div class="spacer-top"></div></td></tr>
+          </thead>
+          <tbody>
+            <tr><td>
+              <div class="content-wrapper">
+                <div class="header">
+                  <h1>DAFTAR NAMA AKUN BELAJAR</h1>
+                  <h2>SMPN 1 BEJI</h2>
+                  <div class="header-divider"></div>
+                  <h3>Kelas: ${className}</h3>
+                </div>
+                
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th style="width:50px;text-align:center;">No</th>
+                      <th>Nama Lengkap</th>
+                      <th style="width:50px;text-align:center;">L/P</th>
+                      <th style="width:120px;text-align:center;">NIS (User)</th>
+                      <th>Email (Pass)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${rows}
+                  </tbody>
+                </table>
+              </div>
+            </td></tr>
+          </tbody>
+          <tfoot>
+            <tr><td><div class="spacer-bottom"></div></td></tr>
+          </tfoot>
+        </table>
+
+        <div class="print-footer">
+          SMPN 1 BEJI
+        </div>
+      </body>
+      </html>
+    `;
+
+    const newWindow = window.open('', '_blank');
+    if (newWindow) {
+      newWindow.document.write(htmlDocument);
+      newWindow.document.close();
+    }
+  };
 
   const groupedStudents = useMemo(() => {
     const groups = {};
@@ -567,6 +850,16 @@ export default function AdminPanel({
           }`}
         >
           <span className="text-lg">📝</span> Riwayat Jurnal Mengajar
+        </button>
+        <button
+          onClick={() => setActiveTab('teaching_modules')}
+          className={`w-full text-left px-4 py-3 text-sm font-bold rounded-xl transition-all flex items-center gap-3 cursor-pointer ${
+            activeTab === 'teaching_modules'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+              : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600'
+          }`}
+        >
+          <span className="text-lg">📑</span> Data Perangkat Pembelajaran
         </button>
         <button
           onClick={() => setActiveTab('classes')}
@@ -1074,6 +1367,22 @@ export default function AdminPanel({
                                 <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">
                                   {classStudents.length} Siswa
                                 </span>
+                                <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                                  <button
+                                    onClick={() => exportClassExcel(cls.id, cls.name, classStudents)}
+                                    className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-md transition"
+                                    title="Unduh Excel"
+                                  >
+                                    <FileSpreadsheet className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => printClassDocument(cls.id, cls.name, classStudents)}
+                                    className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-md transition"
+                                    title="Cetak PDF"
+                                  >
+                                    <Printer className="w-4 h-4" />
+                                  </button>
+                                </div>
                                 <div className="text-slate-400">
                                   {isExpanded ? <XCircle className="w-4 h-4 text-indigo-500" /> : <ArrowUpRight className="w-4 h-4" />}
                                 </div>
@@ -1186,8 +1495,26 @@ export default function AdminPanel({
                       <p className="text-xs text-red-500 font-medium">{groupedStudents['unassigned'].length} Siswa Terdaftar</p>
                     </div>
                   </div>
-                  <div className="text-red-400">
-                    {(expandedClasses['unassigned'] || searchStudent !== '') ? <XCircle className="w-5 h-5 text-red-500" /> : <ArrowUpRight className="w-5 h-5" />}
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={() => exportClassExcel('unassigned', 'Tanpa Kelas', groupedStudents['unassigned'])}
+                        className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-md transition"
+                        title="Unduh Excel"
+                      >
+                        <FileSpreadsheet className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => printClassDocument('unassigned', 'Tanpa Kelas', groupedStudents['unassigned'])}
+                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-md transition"
+                        title="Cetak PDF"
+                      >
+                        <Printer className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="text-red-400">
+                      {(expandedClasses['unassigned'] || searchStudent !== '') ? <XCircle className="w-5 h-5 text-red-500" /> : <ArrowUpRight className="w-5 h-5" />}
+                    </div>
                   </div>
                 </div>
 
@@ -1511,6 +1838,116 @@ export default function AdminPanel({
       )}
 
       {/* CHEATLOGS TAB */}
+      
+      {/* TEACHING MODULES TAB */}
+      {activeTab === 'teaching_modules' && (
+        <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm animate-fade-in space-y-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                <FileText className="w-6 h-6 text-indigo-600" />
+                Data Perangkat Pembelajaran Guru
+              </h3>
+              <p className="text-sm text-slate-500 mt-1">Pantau dan unduh perangkat pembelajaran yang telah diunggah oleh guru-guru mapel.</p>
+            </div>
+          </div>
+
+                    <div className="flex gap-2 items-center mb-4">
+              {currentFolderId && (
+                <button
+                  onClick={() => {
+                    const currentFolder = (teachingModules || []).find(m => m.id === currentFolderId);
+                    setCurrentFolderId(currentFolder?.parentId || null);
+                  }}
+                  className="px-3 py-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg flex items-center gap-1 cursor-pointer"
+                >
+                  <ArrowLeft className="w-3 h-3" /> Kembali
+                </button>
+              )}
+            </div>
+
+            <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wider bg-slate-50">
+                  <th className="p-4 font-bold rounded-tl-xl">Judul / Nama Folder</th>
+                  <th className="p-4 font-bold">Guru</th>
+                  <th className="p-4 font-bold">Kelas & Mapel</th>
+                  <th className="p-4 font-bold">Aksi / File</th>
+                  <th className="p-4 font-bold text-right rounded-tr-xl">Tgl Diunggah</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm">
+                {(teachingModules || []).filter(m => (m.parentId || null) === currentFolderId).length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="p-10 text-center text-slate-400">
+                      Belum ada folder atau perangkat pembelajaran di sini.
+                    </td>
+                  </tr>
+                ) : (
+                  (teachingModules || [])
+                    .filter(m => (m.parentId || null) === currentFolderId)
+                    .sort((a, b) => {
+                      if (a.type === 'folder' && b.type !== 'folder') return -1;
+                      if (a.type !== 'folder' && b.type === 'folder') return 1;
+                      return (a.title || '').localeCompare(b.title || '');
+                    })
+                    .map(mod => (
+                    <tr key={mod.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="p-4 font-semibold text-slate-800 flex items-center gap-2">
+                        {mod.type === 'folder' ? (
+                          <button onClick={() => setCurrentFolderId(mod.id)} className="flex items-center gap-2 text-indigo-700 hover:underline cursor-pointer bg-transparent border-none p-0 text-left font-semibold">
+                            <Folder className="w-5 h-5 text-indigo-500 fill-indigo-100" />
+                            {mod.title}
+                          </button>
+                        ) : (
+                          <>
+                            <FileText className="w-4 h-4 text-slate-400" />
+                            {mod.title}
+                          </>
+                        )}
+                      </td>
+                      <td className="p-4 text-slate-600">
+                        {teachers.find(t => t.id === mod.teacherId)?.name || 'Anonim'}
+                      </td>
+                      <td className="p-4">
+                        {mod.type === 'folder' ? '-' : (
+                          <>
+                            <div className="text-xs font-bold text-indigo-700 bg-indigo-50 inline-block px-2 py-1 rounded-md mb-1">{classes.find(c => c.id === mod.classId)?.name || mod.classId}</div>
+                            <div className="text-xs text-slate-500">{subjects.find(s => s.id === mod.subjectId)?.name || mod.subjectId}</div>
+                          </>
+                        )}
+                      </td>
+                      <td className="p-4 text-slate-600">
+                        <div className="flex gap-2 items-center">
+                                                    <button type="button" onClick={() => handleDownloadModule(mod)} className="text-indigo-600 hover:underline flex items-center gap-1.5 text-xs font-bold cursor-pointer bg-transparent border-none p-0 text-left">
+                            <Download className="w-3.5 h-3.5" />
+                            Unduh
+                          </button>
+                          <button
+                            onClick={() => {
+                              setShareModuleId(mod.id);
+                              setShowShareModuleModal(true);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer ml-auto"
+                            title="Bagikan"
+                          >
+                            <Send className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                      <td className="p-4 text-right text-slate-500 text-xs">
+                        {new Date(mod.createdAt).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {activeTab === 'cheatlogs' && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-6 space-y-6">
           <div>
@@ -3330,6 +3767,66 @@ export default function AdminPanel({
         </div>
       )}
       </div>
+
+      {/* MODAL BAGIKAN MODULE ADMIN */}
+      {showShareModuleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
+            <form onSubmit={handleShareModuleSubmit}>
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-indigo-100 text-indigo-600 rounded-xl">
+                    <Send className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900">Bagikan Perangkat / Folder</h3>
+                    <p className="text-xs text-slate-500">Kirim salinan ke guru lain</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setShowShareModuleModal(false); setShareModuleId(null); }}
+                  className="text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-200 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 space-y-5">
+                <div>
+                  <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Pilih Guru Tujuan</label>
+                  <select
+                    required
+                    value={shareModuleTargetTeacher}
+                    onChange={e => setShareModuleTargetTeacher(e.target.value)}
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-semibold text-sm"
+                  >
+                    <option value="">-- Pilih Guru --</option>
+                    {teachers.map(t => (
+                      <option key={t.id} value={t.id}>{t.name} ({t.subject})</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="pt-2 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setShowShareModuleModal(false); setShareModuleId(null); }}
+                    className="px-5 py-2.5 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!shareModuleTargetTeacher}
+                    className="px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl transition cursor-pointer shadow-sm shadow-indigo-200"
+                  >
+                    Kirim Bagikan
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

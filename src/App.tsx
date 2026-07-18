@@ -1,7 +1,7 @@
 import toast, { Toaster } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { 
-  Teacher, Student, ClassItem, SubjectItem, Material, JournalEntry, Exam, CheatLog, ExamSubmission, TeacherAnnouncement, RegistrationRequest, SchoolConfig, QuestionBank, ShareRequest, GlobalAnnouncement, TeacherScheduleNote 
+  Teacher, Student, ClassItem, SubjectItem, Material, JournalEntry, Exam, CheatLog, ExamSubmission, TeacherAnnouncement, RegistrationRequest, SchoolConfig, QuestionBank, ShareRequest, GlobalAnnouncement, TeacherScheduleNote, TeachingModule 
 } from './types';
 import AdminPanel from './components/AdminPanel';
 import TeacherPanel from './components/TeacherPanel';
@@ -268,6 +268,7 @@ export default function App() {
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [subjects, setSubjects] = useState<SubjectItem[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [teachingModules, setTeachingModules] = useState<TeachingModule[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
   const [questionBanks, setQuestionBanks] = useState<QuestionBank[]>([]);
   const [journals, setJournals] = useState<JournalEntry[]>([]);
@@ -300,6 +301,7 @@ export default function App() {
     const unsubClasses = syncCollection('classes', setClasses, SEED_CLASSES);
     const unsubSubjects = syncCollection('subjects', setSubjects, SEED_SUBJECTS);
     const unsubMaterials = syncCollection('materials', setMaterials, SEED_MATERIALS);
+    const unsubTeachingModules = syncCollection('teachingModules', setTeachingModules, []);
     const unsubExams = syncCollection('exams', setExams, SEED_EXAMS);
     const unsubQuestionBanks = syncCollection('questionBanks', setQuestionBanks, []);
     const unsubJournals = syncCollection('journals', setJournals, SEED_JOURNALS);
@@ -319,6 +321,7 @@ export default function App() {
       unsubClasses();
       unsubSubjects();
       unsubMaterials();
+      unsubTeachingModules();
       unsubExams();
       unsubQuestionBanks();
       unsubJournals();
@@ -516,6 +519,23 @@ export default function App() {
     updateDocument('materials', { id, status: currentStatus === 'Aktif' ? 'Draft' : 'Aktif' } as any);
   };
 
+  
+  const handleSaveTeachingModule = (newModule: Omit<TeachingModule, 'id'> | TeachingModule) => {
+    const moduleNode: TeachingModule = {
+      ...newModule,
+      id: (newModule as TeachingModule).id || `tm_${Math.random().toString(36).substring(7)}`
+    };
+    addDocument('teachingModules', moduleNode);
+  };
+
+  const handleUpdateTeachingModule = (updatedModule: TeachingModule) => {
+    updateDocument('teachingModules', updatedModule);
+  };
+
+  const handleDeleteTeachingModule = (moduleId: string) => {
+    deleteDocument('teachingModules', moduleId);
+  };
+
   const handleDeleteMaterial = (id: string) => {
     deleteDocument('materials', id);
   };
@@ -626,6 +646,35 @@ export default function App() {
             delete (newQb as any).createdAt;
             handleSaveQuestionBank(newQb as any);
           }
+        } else if (req.itemType === 'TeachingModule') {
+          const tm = teachingModules.find(t => t.id === req.itemId);
+          if (tm) {
+            // Function to deeply copy a folder and its contents
+            const copyModule = (moduleId, parentId) => {
+              const moduleToCopy = teachingModules.find(m => m.id === moduleId);
+              if (!moduleToCopy) return;
+              
+              const newModuleId = `tm_${Math.random().toString(36).substring(7)}`;
+              const newModule = { 
+                ...moduleToCopy, 
+                id: newModuleId,
+                teacherId: req.receiverId, 
+                parentId: parentId,
+                createdAt: new Date().toISOString() 
+              };
+              addDocument('teachingModules', newModule);
+
+              // If it's a folder, also copy all its children
+              if (moduleToCopy.type === 'folder') {
+                const children = teachingModules.filter(m => m.parentId === moduleId);
+                children.forEach(child => {
+                  copyModule(child.id, newModuleId);
+                });
+              }
+            };
+            
+            copyModule(tm.id, null);
+          }
         }
       }
       updateDocument('shareRequests', { id: requestId, status: response } as any);
@@ -695,7 +744,7 @@ export default function App() {
       const matchedStudent = students.find(s => s.nis === identifier || s.email === email);
       if (matchedStudent) {
         setCurrentRole('Student');
-        const className = SEED_CLASSES.find(c => c.id === matchedStudent.classId)?.name || 'N/A';
+        const className = classes.find(c => c.id === matchedStudent.classId)?.name || 'N/A';
         setActiveUser({ ...matchedStudent, className });
         return;
       }
@@ -716,7 +765,7 @@ export default function App() {
       const expectedStudentPass = matchedStudent?.password || matchedStudent?.email || matchedStudent?.nis;
       if (matchedStudent && pass === expectedStudentPass) {
         setCurrentRole('Student');
-        const className = SEED_CLASSES.find(c => c.id === matchedStudent.classId)?.name || 'N/A';
+        const className = classes.find(c => c.id === matchedStudent.classId)?.name || 'N/A';
         setActiveUser({ ...matchedStudent, className });
         return;
       }
@@ -737,7 +786,7 @@ export default function App() {
     } else {
       setCurrentRole('Student');
       const student = targetObj || students[0];
-      const className = SEED_CLASSES.find(c => c.id === student.classId)?.name || 'N/A';
+      const className = classes.find(c => c.id === student.classId)?.name || 'N/A';
       setActiveUser({ ...student, className });
     }
   };
@@ -1119,6 +1168,8 @@ export default function App() {
                 onAddStudent={handleAddStudent}
                 onDeleteStudent={handleDeleteStudent}
                 onUpdateTeacher={handleUpdateTeacher}
+                onShareToTeacher={handleShareToTeacher}
+                teachingModules={teachingModules}
                 onUpdateStudent={handleUpdateStudent}
                 onBulkAddStudents={handleBulkAddStudents}
                 onApproveRegistration={handleApproveRegistration}
@@ -1135,6 +1186,10 @@ export default function App() {
                 subjects={subjects}
                 students={students}
                 materials={materials}
+                teachingModules={teachingModules}
+                onSaveTeachingModule={handleSaveTeachingModule}
+                onUpdateTeachingModule={handleUpdateTeachingModule}
+                onDeleteTeachingModule={handleDeleteTeachingModule}
                 exams={exams}
                 questionBanks={questionBanks}
                 journals={journals}

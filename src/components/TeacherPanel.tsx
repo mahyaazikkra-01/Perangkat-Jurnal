@@ -1,16 +1,22 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { storage, db } from '../firebase';
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { addDocument } from '../firebaseSync';
 import { 
-  Teacher, Student, ClassItem, SubjectItem, Material, JournalEntry, Exam, ExamQuestion, QuestionType, TeacherScheduleNote, TeacherAnnouncement, QuestionBank, ExamSubmission, ShareRequest, CheatLog
+  Teacher, Student, ClassItem, SubjectItem, Material, JournalEntry, Exam, ExamQuestion, QuestionType, TeacherScheduleNote, TeacherAnnouncement, QuestionBank, ExamSubmission, ShareRequest, CheatLog, TeachingModule
 } from '../types';
 
 import { 
   BookOpen, Plus, Trash2, Calendar, FileText, ToggleLeft, ToggleRight, ListTodo, Key, Clock, HelpCircle, Save, Check,
   FileSpreadsheet, Upload, AlertCircle, Clipboard, Download, Info, Printer, Filter, BarChart3, X, Settings, Building, UserCheck, ShieldAlert,
-  Edit3, Camera, User, Image, MapPin, Bell, Megaphone, AlertTriangle, Sparkles, Send, Database, CheckCircle, FileCode, Users
+  Edit3, Camera, User, Image, MapPin, Bell, Megaphone, AlertTriangle, Sparkles, Send, Database, CheckCircle, FileCode, Users,
+  Folder, FolderPlus, Scissors, ClipboardPaste, CornerUpLeft, ArrowLeft
 } from 'lucide-react';
 
 export interface SchoolIdentityConfig {
@@ -29,6 +35,10 @@ interface TeacherPanelProps {
   subjects: SubjectItem[];
   students: Student[];
   materials: Material[];
+  teachingModules?: TeachingModule[];
+  onSaveTeachingModule?: (mod: Omit<TeachingModule, 'id'>) => void;
+  onUpdateTeachingModule?: (mod: TeachingModule) => void;
+  onDeleteTeachingModule?: (id: string) => void;
   exams: Exam[];
   questionBanks?: QuestionBank[];
   journals: JournalEntry[];
@@ -115,6 +125,10 @@ export default function TeacherPanel({
   subjects,
   students,
   materials,
+  teachingModules = [],
+  onSaveTeachingModule,
+  onUpdateTeachingModule,
+  onDeleteTeachingModule,
   exams,
   questionBanks = [],
   journals,
@@ -165,7 +179,7 @@ export default function TeacherPanel({
     return a.name.localeCompare(b.name);
   });
 
-  const [activeTab, setActiveTab] = useState<'journal' | 'materials' | 'exams' | 'bank_soal' | 'daftar_nilai' | 'profile' | 'announcements' | 'cheatlogs'>('journal');
+  const [activeTab, setActiveTab] = useState<'journal' | 'materials' | 'teaching_modules' | 'exams' | 'bank_soal' | 'daftar_nilai' | 'profile' | 'announcements' | 'cheatlogs'>('journal');
 
   // --- 0. IDENTITAS SEKOLAH & KEPALA SEKOLAH STATE ---
   const [schoolIdentity, setSchoolIdentity] = useState<SchoolIdentityConfig>(() => {
@@ -776,11 +790,32 @@ export default function TeacherPanel({
   };
 
 
+  const exportGradesExcel = (selectedExamId: string) => {
+    const exam = exams.find(e => e.id === selectedExamId);
+    if (!exam) return;
+    const examSubmissions = teacherSubmissions.filter(s => s.examId === selectedExamId).sort(sortSubmissions);
+    const cls = getClassName(exam.classId);
+    const subj = getSubjectName(exam.subjectId);
+    
+    const data = examSubmissions.map((s, idx) => ({
+      'No': idx + 1,
+      'NIS': s.studentNis,
+      'Nama Siswa': s.studentName,
+      'Nilai': s.score,
+      'Waktu Pengerjaan': new Date(s.submittedAt).toLocaleString('id-ID')
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Daftar Nilai');
+    XLSX.writeFile(workbook, `Daftar_Nilai_${exam.title.replace(/\s+/g, '_')}_${cls}.xlsx`);
+  };
+
   const printGradesDocument = (selectedExamId: string) => {
     const exam = exams.find(e => e.id === selectedExamId);
     if (!exam) return;
     
-    const examSubmissions = teacherSubmissions.filter(s => s.examId === selectedExamId);
+    const examSubmissions = teacherSubmissions.filter(s => s.examId === selectedExamId).sort(sortSubmissions);
     const cls = getClassName(exam.classId);
     const subj = getSubjectName(exam.subjectId);
     
@@ -871,6 +906,274 @@ export default function TeacherPanel({
   // --- 2. MATERIALS STATE ---
   const [showAddMateriModal, setShowAddMateriModal] = useState(false);
   const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null);
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [clipboard, setClipboard] = useState<{ id: string; action: 'cut' } | null>(null);
+  const [showShareModuleModal, setShowShareModuleModal] = useState(false);
+  const [shareModuleId, setShareModuleId] = useState<string | null>(null);
+  const [shareModuleTargetTeacher, setShareModuleTargetTeacher] = useState<string>('');
+
+  const handleShareModuleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!shareModuleId || !shareModuleTargetTeacher) return;
+    const mod = teachingModules.find(m => m.id === shareModuleId);
+    if (!mod) return;
+    onShareToTeacher({
+      itemId: mod.id,
+      itemType: 'TeachingModule',
+      itemTitle: mod.title,
+      receiverId: shareModuleTargetTeacher,
+      senderId: currentTeacher.id,
+      senderName: currentTeacher.name,
+      status: 'Pending'
+    });
+    toast.success('Berhasil dikirim ke guru tujuan!');
+    setShowShareModuleModal(false);
+    setShareModuleId(null);
+    setShareModuleTargetTeacher('');
+  };
+
+  const [showFolderModal, setShowFolderModal] = useState(false);
+  const [folderName, setFolderName] = useState('');
+  const [showRenameModal, setShowRenameModal] = useState<{ id: string, name: string } | null>(null);
+
+  const handleCreateFolder = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!folderName.trim()) return;
+    const folderId = `fold_${Math.random().toString(36).substring(7)}`;
+    onSaveTeachingModule?.({
+      id: folderId,
+      title: folderName,
+      classId: '',
+      subjectId: '',
+      teacherId: currentTeacher.id,
+      fileName: '',
+      fileUrl: '',
+      fileType: '',
+      createdAt: new Date().toISOString(),
+      type: 'folder',
+      parentId: currentFolderId
+    } as any);
+    toast.success('Folder dibuat!');
+    setShowFolderModal(false);
+    setFolderName('');
+  };
+
+  const handleRenameItemSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showRenameModal || !showRenameModal.name.trim()) return;
+    const mod = teachingModules.find(m => m.id === showRenameModal.id);
+    if (mod) {
+      onUpdateTeachingModule?.({
+        ...mod,
+        title: showRenameModal.name
+      });
+      toast.success('Berhasil diganti nama!');
+    }
+    setShowRenameModal(null);
+  };
+
+  const handlePaste = () => {
+    if (!clipboard) return;
+    const modToMove = teachingModules.find(m => m.id === clipboard.id);
+    if (modToMove) {
+      onUpdateTeachingModule?.({
+        ...modToMove,
+        parentId: currentFolderId
+      });
+      toast.success('Berhasil dipindah!');
+    }
+    setClipboard(null);
+  };
+  
+  // --- TEACHING MODULES STATE ---
+  const [showModuleModal, setShowModuleModal] = useState(false);
+  const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
+  const [moduleTitle, setModuleTitle] = useState('');
+  const [moduleClassId, setModuleClassId] = useState('');
+  const [moduleSubjectId, setModuleSubjectId] = useState('');
+  const [moduleFile, setModuleFile] = useState<File | null>(null);
+  const [moduleUploadProgress, setModuleUploadProgress] = useState(0);
+
+  const resetModuleForm = () => {
+    setModuleTitle('');
+    setModuleClassId('');
+    setModuleSubjectId('');
+    setModuleFile(null);
+    setModuleUploadProgress(0);
+    setEditingModuleId(null);
+  };
+
+  
+  const handleDownloadFolder = async (folder: TeachingModule) => {
+    toast.loading('Mengompres folder, mohon tunggu...', { id: 'download-folder' });
+    try {
+      const zip = new JSZip();
+      
+      const addFilesToZip = async (currentFolderId: string, currentZipFolder: JSZip) => {
+        const children = (teachingModules || []).filter(m => m.parentId === currentFolderId);
+        for (const child of children) {
+          if (child.type === 'folder') {
+            const newZipFolder = currentZipFolder.folder(child.title);
+            if (newZipFolder) {
+              await addFilesToZip(child.id, newZipFolder);
+            }
+          } else {
+            if (child.fileUrl === 'CHUNKED') {
+              const q = query(collection(db, 'teachingModuleChunks'), where('moduleId', '==', child.id), orderBy('chunkIndex'));
+              const snap = await getDocs(q);
+              let base64 = '';
+              snap.forEach(doc => {
+                base64 += doc.data().data;
+              });
+              if (base64) {
+                const base64Data = base64.split(';base64,').pop();
+                if (base64Data) {
+                  currentZipFolder.file(child.fileName, base64Data, { base64: true });
+                }
+              }
+            } else if (child.fileUrl) {
+              try {
+                const response = await fetch(child.fileUrl);
+                const blob = await response.blob();
+                currentZipFolder.file(child.fileName, blob);
+              } catch (e) {
+                console.warn('Could not fetch file for zip: ', child.fileUrl);
+              }
+            }
+          }
+        }
+      };
+
+      await addFilesToZip(folder.id, zip);
+      const content = await zip.generateAsync({ type: 'blob' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(content);
+      a.download = `${folder.title}.zip`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast.success('Berhasil diunduh', { id: 'download-folder' });
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal mengunduh folder', { id: 'download-folder' });
+    }
+  };
+
+  const handleDownloadModule = async (mod: TeachingModule) => {
+    if (mod.type === 'folder') {
+      return handleDownloadFolder(mod);
+    }
+
+    if (mod.fileUrl !== 'CHUNKED') {
+      const a = document.createElement('a');
+      a.href = mod.fileUrl;
+      a.download = mod.fileName;
+      a.click();
+      return;
+    }
+    
+    toast.loading('Mengunduh file...', { id: 'download-mod' });
+    try {
+      const q = query(collection(db, 'teachingModuleChunks'), where('moduleId', '==', mod.id), orderBy('chunkIndex'));
+      const snap = await getDocs(q);
+      let base64 = '';
+      snap.forEach(doc => {
+        base64 += doc.data().data;
+      });
+      if (base64) {
+        const a = document.createElement('a');
+        a.href = base64;
+        a.download = mod.fileName;
+        a.click();
+        toast.success('Berhasil diunduh', { id: 'download-mod' });
+      } else {
+        toast.error('File tidak ditemukan', { id: 'download-mod' });
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal mengunduh', { id: 'download-mod' });
+    }
+  };
+
+  const handleSaveModuleForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!moduleTitle || !moduleClassId || !moduleSubjectId) return;
+    if (!editingModuleId && !moduleFile) {
+      toast.error('Pilih file perangkat pembelajaran untuk diunggah');
+      return;
+    }
+
+    if (moduleFile && !editingModuleId) {
+      if (moduleFile.size > 2200000) {
+        toast.error('Ukuran file maksimal 2MB untuk versi ini.');
+        return;
+      }
+      setUploading(true);
+      setModuleUploadProgress(10);
+      
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64Url = reader.result as string;
+        const moduleId = `tm_${Math.random().toString(36).substring(7)}`;
+        const chunkSize = 800000;
+        const numChunks = Math.ceil(base64Url.length / chunkSize);
+        
+        try {
+          for (let i = 0; i < numChunks; i++) {
+            const chunkData = base64Url.slice(i * chunkSize, (i + 1) * chunkSize);
+            await addDocument('teachingModuleChunks', {
+              id: `${moduleId}_chunk_${i}`,
+              moduleId,
+              chunkIndex: i,
+              data: chunkData
+            });
+            setModuleUploadProgress(10 + ((i + 1) / numChunks) * 80);
+          }
+          
+          onSaveTeachingModule?.({
+            id: moduleId,
+            title: moduleTitle,
+            classId: moduleClassId,
+            subjectId: moduleSubjectId,
+            teacherId: currentTeacher.id,
+            fileName: moduleFile.name,
+            fileUrl: 'CHUNKED',
+            fileType: moduleFile.type || 'application/octet-stream',
+            type: 'file',
+            parentId: currentFolderId,
+            createdAt: new Date().toISOString()
+          } as any);
+          toast.success('Perangkat Pembelajaran berhasil diunggah!');
+        } catch (err) {
+          console.error(err);
+          toast.error('Gagal mengunggah file. Silakan coba lagi.');
+        } finally {
+          setUploading(false);
+          setModuleUploadProgress(100);
+          setShowModuleModal(false);
+          resetModuleForm();
+        }
+      };
+      reader.onerror = () => {
+        toast.error('Gagal membaca file');
+        setUploading(false);
+      };
+      reader.readAsDataURL(moduleFile);
+    } else if (editingModuleId && onUpdateTeachingModule) {
+      const existing = teachingModules.find(m => m.id === editingModuleId);
+      if (existing) {
+        onUpdateTeachingModule({
+          ...existing,
+          title: moduleTitle,
+          classId: moduleClassId,
+          subjectId: moduleSubjectId,
+        });
+        toast.success('Perangkat Pembelajaran berhasil diperbarui!');
+        setShowModuleModal(false);
+        resetModuleForm();
+      }
+    }
+  };
+
   const [materiTitle, setMateriTitle] = useState('');
   const [materiClasses, setMateriClasses] = useState<string[]>([]);
   const [materiSubject, setMateriSubject] = useState('');
@@ -1608,6 +1911,18 @@ export default function TeacherPanel({
   const getClassName = (classId: string) => classes.find(c => c.id === classId)?.name || 'N/A';
   const getSubjectName = (subjectId: string) => subjects.find(s => s.id === subjectId)?.name || 'N/A';
 
+  const sortSubmissions = (a: ExamSubmission, b: ExamSubmission) => {
+    const studentA = students.find(s => s.nis === a.studentNis);
+    const studentB = students.find(s => s.nis === b.studentNis);
+    const noAbsenA = studentA?.noAbsen;
+    const noAbsenB = studentB?.noAbsen;
+    
+    if (noAbsenA != null && noAbsenB != null) return noAbsenA - noAbsenB;
+    if (noAbsenA != null) return -1;
+    if (noAbsenB != null) return 1;
+    return (a.studentName || '').localeCompare(b.studentName || '');
+  };
+
   // Filters for Teacher's own content
   const teacherMaterials = materials.filter(m => m.teacherId === currentTeacher.id);
   const teacherExams = exams.filter(e => classes.some(c => c.id === e.classId));
@@ -1658,6 +1973,16 @@ export default function TeacherPanel({
             }`}
           >
             📚 Materi Pelajaran
+          </button>
+          <button
+            onClick={() => setActiveTab('teaching_modules')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'teaching_modules'
+                ? 'bg-white text-indigo-950 shadow-xs'
+                : 'bg-indigo-800/40 text-indigo-100 hover:bg-indigo-800/60'
+            }`}
+          >
+            📑 Perangkat Pembelajaran
           </button>
           <button
             onClick={() => setActiveTab('exams')}
@@ -2763,7 +3088,179 @@ export default function TeacherPanel({
         </div>
       )}
 
-      {/* 3. EXAMS TAB */}
+      
+      {/* 2B. TEACHING MODULES TAB */}
+      {activeTab === 'teaching_modules' && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-6 space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <h3 className="font-bold text-slate-900 text-lg">Perangkat Pembelajaran</h3>
+              <p className="text-slate-500 text-xs mt-0.5">Unggah dan kelola perangkat pembelajaran untuk dibagikan.</p>
+            </div>
+            <button
+              onClick={() => {
+                resetModuleForm();
+                setShowModuleModal(true);
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm shadow-indigo-200 flex items-center gap-2 cursor-pointer w-full sm:w-auto justify-center"
+            >
+              <Plus className="w-4 h-4" /> Unggah Perangkat Pembelajaran
+            </button>
+          </div>
+
+          <div className="flex gap-2 items-center mb-4">
+              {currentFolderId && (
+                <button
+                  onClick={() => {
+                    const currentFolder = teachingModules.find(m => m.id === currentFolderId);
+                    setCurrentFolderId(currentFolder?.parentId || null);
+                  }}
+                  className="px-3 py-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg flex items-center gap-1 cursor-pointer"
+                >
+                  <ArrowLeft className="w-3 h-3" /> Kembali
+                </button>
+              )}
+              <button
+                onClick={() => { setFolderName(''); setShowFolderModal(true); }}
+                className="px-3 py-1.5 text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg flex items-center gap-1 cursor-pointer"
+              >
+                <FolderPlus className="w-3 h-3" /> Buat Folder
+              </button>
+              {clipboard && (
+                <button
+                  onClick={handlePaste}
+                  className="px-3 py-1.5 text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg flex items-center gap-1 cursor-pointer"
+                >
+                  <ClipboardPaste className="w-3 h-3" /> Tempel (Paste)
+                </button>
+              )}
+            </div>
+
+            <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wider bg-slate-50">
+                  <th className="p-4 font-bold rounded-tl-xl">Nama / Judul</th>
+                  <th className="p-4 font-bold">Kelas & Mapel</th>
+                  <th className="p-4 font-bold">File</th>
+                  <th className="p-4 font-bold">Tgl Diunggah</th>
+                  <th className="p-4 font-bold text-right rounded-tr-xl">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm">
+                {teachingModules.filter(m => m.teacherId === currentTeacher.id && (m.parentId || null) === currentFolderId).length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="p-10 text-center text-slate-400">
+                      Belum ada folder atau perangkat pembelajaran di sini.
+                    </td>
+                  </tr>
+                ) : (
+                  teachingModules
+                    .filter(m => m.teacherId === currentTeacher.id && (m.parentId || null) === currentFolderId)
+                    .sort((a, b) => {
+                      if (a.type === 'folder' && b.type !== 'folder') return -1;
+                      if (a.type !== 'folder' && b.type === 'folder') return 1;
+                      return (a.title || '').localeCompare(b.title || '');
+                    })
+                    .map(mod => (
+                    <tr key={mod.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="p-4 font-semibold text-slate-800 flex items-center gap-2">
+                        {mod.type === 'folder' ? (
+                          <button onClick={() => setCurrentFolderId(mod.id)} className="flex items-center gap-2 text-indigo-700 hover:underline cursor-pointer bg-transparent border-none p-0 text-left font-semibold">
+                            <Folder className="w-5 h-5 text-indigo-500 fill-indigo-100" />
+                            {mod.title}
+                          </button>
+                        ) : (
+                          <>
+                            <FileText className="w-4 h-4 text-slate-400" />
+                            {mod.title}
+                          </>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        {mod.type === 'folder' ? '-' : (
+                          <>
+                            <div className="text-xs font-bold text-indigo-700 bg-indigo-50 inline-block px-2 py-1 rounded-md mb-1">{classes.find(c => c.id === mod.classId)?.name || mod.classId}</div>
+                            <div className="text-xs text-slate-500">{subjects.find(s => s.id === mod.subjectId)?.name || mod.subjectId}</div>
+                          </>
+                        )}
+                      </td>
+                      <td className="p-4 text-slate-600">
+                        <button type="button" onClick={() => handleDownloadModule(mod)} className="text-indigo-600 hover:underline flex items-center gap-1.5 text-xs font-bold cursor-pointer bg-transparent border-none p-0 text-left">
+                          <Download className="w-3.5 h-3.5" />
+                          Unduh
+                        </button>
+                      </td>
+                      <td className="p-4 text-slate-500 text-xs">
+                        {new Date(mod.createdAt).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}
+                      </td>
+                      <td className="p-4 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => {
+                              setShareModuleId(mod.id);
+                              setShowShareModuleModal(true);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                            title="Bagikan"
+                          >
+                            <Send className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setShowRenameModal({ id: mod.id, name: mod.title })}
+                            className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                            title="Ganti Nama"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setClipboard({ id: mod.id, action: 'cut' });
+                              toast('Disalin ke Papan Klip. Pindah ke folder lain lalu Paste.');
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                            title="Potong (Cut)"
+                          >
+                            <Scissors className="w-4 h-4" />
+                          </button>
+                          {mod.type !== 'folder' && (
+                            <button
+                              onClick={() => {
+                                setModuleTitle(mod.title);
+                                setModuleClassId(mod.classId);
+                                setModuleSubjectId(mod.subjectId);
+                                setEditingModuleId(mod.id);
+                                setShowModuleModal(true);
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                              title="Edit Info"
+                            >
+                              <Info className="w-4 h-4" />
+                            </button>
+                          )}
+                          {onDeleteTeachingModule && (
+                            <button
+                              onClick={() => {
+                                if (window.confirm('Yakin hapus item ini?')) onDeleteTeachingModule(mod.id);
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="Hapus"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+{/* 3. EXAMS TAB */}
       {activeTab === 'exams' && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-6 space-y-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
@@ -2887,12 +3384,20 @@ export default function TeacherPanel({
               <p className="text-slate-500 text-xs mt-0.5">Lihat hasil pengerjaan siswa dari paket ujian dan tugas yang telah diberikan.</p>
             </div>
             {selectedExamForGrades && (
-              <button
-                onClick={() => printGradesDocument(selectedExamForGrades)}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm px-4 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs"
-              >
-                <Printer className="w-4 h-4" /> Cetak Daftar Nilai
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => exportGradesExcel(selectedExamForGrades)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm px-4 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <FileSpreadsheet className="w-4 h-4" /> Unduh Excel
+                </button>
+                <button
+                  onClick={() => printGradesDocument(selectedExamForGrades)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm px-4 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <Printer className="w-4 h-4" /> Cetak PDF
+                </button>
+              </div>
             )}
           </div>
 
@@ -2994,7 +3499,7 @@ export default function TeacherPanel({
                           ) : (
                             teacherSubmissions
                               .filter(s => s.examId === selectedExamForGrades)
-                              .sort((a, b) => b.score - a.score)
+                              .sort(sortSubmissions)
                               .map((s, idx) => (
                                 <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                                   <td className="px-4 py-3 text-center text-slate-500">{idx + 1}</td>
@@ -3582,7 +4087,7 @@ export default function TeacherPanel({
                 <Send className="w-5 h-5 text-purple-600" />
                 Kotak Masuk Berbagi
               </h3>
-              <p className="text-slate-500 text-xs mt-0.5">Permintaan berbagi materi atau bank soal dari guru lain yang perlu konfirmasi Anda.</p>
+              <p className="text-slate-500 text-xs mt-0.5">Permintaan berbagi materi, perangkat ajar, atau bank soal dari guru lain.</p>
             </div>
           </div>
 
@@ -3602,8 +4107,8 @@ export default function TeacherPanel({
                     <div key={req.id} className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:shadow-md transition">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${req.itemType === 'Material' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}`}>
-                            {req.itemType === 'Material' ? 'Materi' : 'Bank Soal'}
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${req.itemType === 'Material' ? 'bg-emerald-100 text-emerald-700' : req.itemType === 'TeachingModule' ? 'bg-blue-100 text-blue-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                            {req.itemType === 'Material' ? 'Materi' : req.itemType === 'TeachingModule' ? 'Perangkat Ajar' : 'Bank Soal'}
                           </span>
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${
                             req.status === 'Pending' ? 'bg-amber-100 text-amber-700' :
@@ -5227,6 +5732,120 @@ export default function TeacherPanel({
         </div>
       )}
 
+      
+      {/* MODAL UPLOAD MODUL AJAR */}
+      {showModuleModal && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <h3 className="font-extrabold text-slate-900 text-lg flex items-center gap-2">
+                <FileText className="w-5 h-5 text-indigo-600" />
+                {editingModuleId ? 'Edit Info Perangkat Pembelajaran' : 'Unggah Perangkat Pembelajaran'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowModuleModal(false);
+                  resetModuleForm();
+                }}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveModuleForm} className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Judul Perangkat Pembelajaran</label>
+                  <input
+                    type="text"
+                    required
+                    value={moduleTitle}
+                    onChange={e => setModuleTitle(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all"
+                    placeholder="Contoh: Perangkat Pembelajaran BAB 1 - Sistem Tata Surya"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Pilih Kelas</label>
+                    <select
+                      required
+                      value={moduleClassId}
+                      onChange={e => setModuleClassId(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all"
+                    >
+                      <option value="">-- Kelas --</option>
+                      {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Mata Pelajaran</label>
+                    <select
+                      required
+                      value={moduleSubjectId}
+                      onChange={e => setModuleSubjectId(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all"
+                    >
+                      <option value="">-- Mapel --</option>
+                      {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {!editingModuleId && (
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">File Perangkat Pembelajaran (.pdf, .doc, .docx, .xls)</label>
+                    <input
+                      type="file"
+                      required
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                      onChange={e => setModuleFile(e.target.files?.[0] || null)}
+                      className="w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {uploading && (
+                <div className="bg-indigo-50 p-4 rounded-xl space-y-2">
+                  <div className="flex justify-between text-xs font-bold text-indigo-700">
+                    <span>Mengunggah file...</span>
+                    <span>{Math.round(moduleUploadProgress)}%</span>
+                  </div>
+                  <div className="w-full bg-indigo-200/50 rounded-full h-2">
+                    <div className="bg-indigo-600 h-2 rounded-full transition-all duration-300" style={{ width: `${moduleUploadProgress}%` }}></div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={uploading}
+                  onClick={() => {
+                    setShowModuleModal(false);
+                    resetModuleForm();
+                  }}
+                  className="px-5 py-2.5 rounded-xl font-bold text-sm text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={uploading}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                  {uploading ? 'Menyimpan...' : 'Simpan Perangkat Pembelajaran'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* MODAL ADD / EDIT SCHEDULE NOTE */}
       {showScheduleModal && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
@@ -5560,6 +6179,157 @@ export default function TeacherPanel({
                 Hapus
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL BUAT FOLDER */}
+      {showFolderModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h3 className="font-bold text-slate-900">Buat Folder Baru</h3>
+              <button
+                type="button"
+                onClick={() => setShowFolderModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateFolder} className="p-6 space-y-5">
+              <div>
+                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Nama Folder</label>
+                <input
+                  type="text"
+                  required
+                  value={folderName}
+                  onChange={e => setFolderName(e.target.value)}
+                  placeholder="Contoh: Modul Semester 1"
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-semibold text-sm"
+                />
+              </div>
+              <div className="pt-2 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowFolderModal(false)}
+                  className="px-5 py-2.5 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition cursor-pointer shadow-sm shadow-indigo-200"
+                >
+                  Buat Folder
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL BAGIKAN MODULE */}
+      {showShareModuleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
+            <form onSubmit={handleShareModuleSubmit}>
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-indigo-100 text-indigo-600 rounded-xl">
+                    <Send className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900">Bagikan Perangkat / Folder</h3>
+                    <p className="text-xs text-slate-500">Kirim salinan ke guru lain</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setShowShareModuleModal(false); setShareModuleId(null); }}
+                  className="text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-200 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 space-y-5">
+                <div>
+                  <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Pilih Guru Tujuan</label>
+                  <select
+                    required
+                    value={shareModuleTargetTeacher}
+                    onChange={e => setShareModuleTargetTeacher(e.target.value)}
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-semibold text-sm"
+                  >
+                    <option value="">-- Pilih Guru --</option>
+                    {teachers.filter(t => t.id !== currentTeacher.id).map(t => (
+                      <option key={t.id} value={t.id}>{t.name} ({t.subject})</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="pt-2 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setShowShareModuleModal(false); setShareModuleId(null); }}
+                    className="px-5 py-2.5 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!shareModuleTargetTeacher}
+                    className="px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl transition cursor-pointer shadow-sm shadow-indigo-200"
+                  >
+                    Kirim Bagikan
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL GANTI NAMA */}
+      {showRenameModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h3 className="font-bold text-slate-900">Ganti Nama</h3>
+              <button
+                type="button"
+                onClick={() => setShowRenameModal(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleRenameItemSubmit} className="p-6 space-y-5">
+              <div>
+                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Nama Baru</label>
+                <input
+                  type="text"
+                  required
+                  value={showRenameModal.name}
+                  onChange={e => setShowRenameModal({ ...showRenameModal, name: e.target.value })}
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-semibold text-sm"
+                />
+              </div>
+              <div className="pt-2 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowRenameModal(null)}
+                  className="px-5 py-2.5 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition cursor-pointer shadow-sm shadow-indigo-200"
+                >
+                  Simpan
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

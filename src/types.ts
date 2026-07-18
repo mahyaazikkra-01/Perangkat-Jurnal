@@ -56,6 +56,20 @@ export interface Material {
   createdAt: string;
 }
 
+export interface TeachingModule {
+  id: string;
+  title: string;
+  classId: string;
+  subjectId: string;
+  teacherId: string;
+  fileName: string;
+  fileUrl: string;
+  fileType: string;
+  createdAt: string;
+  type?: 'file' | 'folder';
+  parentId?: string | null;
+}
+
 export interface AttendanceStatus {
   studentId: string;
   status: 'Hadir' | 'Sakit' | 'Izin' | 'Alpa';
@@ -230,7 +244,7 @@ export interface ShareRequest {
   senderName: string;
   receiverId: string;
   itemId: string; // Material ID or QuestionBank ID
-  itemType: 'Material' | 'QuestionBank';
+  itemType: 'Material' | 'QuestionBank' | 'TeachingModule';
   itemTitle: string;
   status: 'Pending' | 'Accepted' | 'Rejected';
   createdAt: string;
