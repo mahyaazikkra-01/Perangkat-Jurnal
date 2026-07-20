@@ -9,7 +9,7 @@ import { storage, db } from '../firebase';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { addDocument } from '../firebaseSync';
 import { 
-  Teacher, Student, ClassItem, SubjectItem, Material, JournalEntry, Exam, ExamQuestion, QuestionType, TeacherScheduleNote, TeacherAnnouncement, QuestionBank, ExamSubmission, ShareRequest, CheatLog, TeachingModule
+  Teacher, Student, ClassItem, SubjectItem, Material, JournalEntry, Exam, ExamQuestion, QuestionType, TeacherScheduleNote, TeacherAnnouncement, QuestionBank, ExamSubmission, ShareRequest, CheatLog, TeachingModule, ManualAssessment, ManualGrade
 } from '../types';
 
 import { 
@@ -43,6 +43,7 @@ interface TeacherPanelProps {
   questionBanks?: QuestionBank[];
   journals: JournalEntry[];
   submissions?: ExamSubmission[];
+  manualAssessments?: ManualAssessment[];
   cheatLogs?: CheatLog[];
   onSaveMaterial: (materi: Omit<Material, 'id' | 'createdAt'>) => void;
   onUpdateMaterial?: (materi: Material) => void;
@@ -53,7 +54,12 @@ interface TeacherPanelProps {
   onDeleteExam?: (id: string) => void;
   onSaveQuestionBank?: (bank: Omit<QuestionBank, 'id' | 'createdAt' | 'updatedAt'> | QuestionBank) => void;
   onDeleteQuestionBank?: (id: string) => void;
+  onSaveManualAssessment?: (assessment: Omit<ManualAssessment, 'id' | 'createdAt'>) => void;
+  onUpdateManualAssessment?: (assessment: ManualAssessment) => void;
+  onDeleteManualAssessment?: (id: string) => void;
   onSaveJournal: (entry: Omit<JournalEntry, 'id'>) => void;
+  onUpdateJournal?: (entry: JournalEntry) => void;
+  onDeleteJournal?: (id: string) => void;
   onUpdateTeacher?: (updated: Teacher) => void;
   announcements?: TeacherAnnouncement[];
   shareRequests?: ShareRequest[];
@@ -133,6 +139,7 @@ export default function TeacherPanel({
   questionBanks = [],
   journals,
   submissions = [],
+  manualAssessments = [],
   cheatLogs = [],
   onSaveMaterial,
   onUpdateMaterial,
@@ -143,7 +150,12 @@ export default function TeacherPanel({
   onDeleteExam,
   onSaveQuestionBank,
   onDeleteQuestionBank,
+  onSaveManualAssessment,
+  onUpdateManualAssessment,
+  onDeleteManualAssessment,
   onSaveJournal,
+  onUpdateJournal,
+  onDeleteJournal,
   onUpdateTeacher,
   announcements = [],
   shareRequests = [],
@@ -416,6 +428,7 @@ export default function TeacherPanel({
   // --- 1. JOURNAL STATE ---
   const [journalSubTab, setJournalSubTab] = useState<'form' | 'recap_daily' | 'recap_weekly' | 'recap_monthly' | 'settings'>('form');
   const [journalDate, setJournalDate] = useState(new Date().toISOString().split('T')[0]);
+  const [editingJournalId, setEditingJournalId] = useState<string | null>(null);
   const [journalClass, setJournalClass] = useState('');
   const [journalSubject, setJournalSubject] = useState('');
   const [journalStartPeriod, setJournalStartPeriod] = useState<number>(2);
@@ -457,6 +470,33 @@ export default function TeacherPanel({
     setAttendance(prev => ({ ...prev, [studentId]: status }));
   };
 
+  const handleEditJournalAction = (journal: JournalEntry) => {
+    setEditingJournalId(journal.id);
+    setJournalDate(journal.date);
+    setJournalClass(journal.classId);
+    setJournalSubject(journal.subjectId);
+    setJournalStartPeriod(journal.startPeriod || 2);
+    setJournalEndPeriod(journal.endPeriod || 2);
+    setJournalTopic(journal.topic);
+    setJournalObjectives(journal.learningObjectives || '');
+    setJournalNotes(journal.notes || '');
+    
+    const attMap: Record<string, 'Hadir' | 'Sakit' | 'Izin' | 'Alpa'> = {};
+    journal.attendance.forEach(a => {
+      attMap[a.studentId] = a.status;
+    });
+    setAttendance(attMap);
+
+    setJournalSubTab('form');
+  };
+
+  const handleDeleteJournalAction = (id: string) => {
+    if (onDeleteJournal) {
+      onDeleteJournal(id);
+      toast.success('Jurnal berhasil dihapus');
+    }
+  };
+
   const handleSaveJournal = (e: React.FormEvent) => {
     e.preventDefault();
     if (!journalClass || !journalSubject || !journalTopic || !journalObjectives) {
@@ -474,24 +514,42 @@ export default function TeacherPanel({
       status: attendance[s.id] || 'Hadir'
     }));
 
-    onSaveJournal({
-      date: journalDate,
-      classId: journalClass,
-      subjectId: journalSubject,
-      teacherId: currentTeacher.id,
-      topic: journalTopic,
-      learningObjectives: journalObjectives,
-      notes: journalNotes,
-      startPeriod: Number(journalStartPeriod),
-      endPeriod: Number(journalEndPeriod),
-      attendance: attendanceList
-    });
+    if (editingJournalId && onUpdateJournal) {
+      onUpdateJournal({
+        id: editingJournalId,
+        date: journalDate,
+        classId: journalClass,
+        subjectId: journalSubject,
+        teacherId: currentTeacher.id,
+        topic: journalTopic,
+        learningObjectives: journalObjectives,
+        notes: journalNotes,
+        startPeriod: Number(journalStartPeriod),
+        endPeriod: Number(journalEndPeriod),
+        attendance: attendanceList
+      });
+      toast.success('Jurnal berhasil diperbarui!');
+    } else {
+      onSaveJournal({
+        date: journalDate,
+        classId: journalClass,
+        subjectId: journalSubject,
+        teacherId: currentTeacher.id,
+        topic: journalTopic,
+        learningObjectives: journalObjectives,
+        notes: journalNotes,
+        startPeriod: Number(journalStartPeriod),
+        endPeriod: Number(journalEndPeriod),
+        attendance: attendanceList
+      });
+      setJournalSuccessMessage('Jurnal Mengajar Digital berhasil disimpan!');
+      setTimeout(() => setJournalSuccessMessage(''), 4000);
+    }
 
     setJournalTopic('');
     setJournalObjectives('');
     setJournalNotes('');
-    setJournalSuccessMessage('Jurnal Mengajar Digital berhasil disimpan ke Google Sheets!');
-    setTimeout(() => setJournalSuccessMessage(''), 4000);
+    setEditingJournalId(null);
   };
 
   const getAbsentStudentDetails = (entry: JournalEntry) => {
@@ -789,6 +847,114 @@ export default function TeacherPanel({
     generateAndOpenPrintWindow(entriesToPrint, title, subtitle);
   };
 
+
+
+  const exportManualGradesExcel = (assessmentId: string) => {
+    const assessment = manualAssessments?.find(m => m.id === assessmentId);
+    if (!assessment) return;
+    const cls = getClassName(assessment.classId);
+    
+    const data = assessment.grades.map((g, idx) => ({
+      'No': idx + 1,
+      'NIS': g.studentNis,
+      'Nama Siswa': g.studentName,
+      'Nilai': g.score,
+      'Catatan': g.notes || ''
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Penilaian Manual');
+    XLSX.writeFile(workbook, `Penilaian_${assessment.title.replace(/\s+/g, '_')}_${cls}.xlsx`);
+  };
+
+  const printManualGradesDocument = (assessmentId: string) => {
+    const assessment = manualAssessments?.find(m => m.id === assessmentId);
+    if (!assessment) return;
+    const cls = getClassName(assessment.classId);
+    const subj = getSubjectName(assessment.subjectId);
+
+    const htmlDocument = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Penilaian Manual - ${assessment.title}</title>
+        <style>
+          @page { size: A4 portrait; margin: 15mm; }
+          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e293b; margin: 0; padding: 20px; }
+          .header { text-align: center; border-bottom: 3px double #0f172a; padding-bottom: 12px; margin-bottom: 20px; }
+          .header h1 { font-size: 18px; margin: 0; text-transform: uppercase; color: #0f172a; }
+          .header p { margin: 4px 0 0; font-size: 12px; color: #475569; }
+          .info-table { width: 100%; margin-bottom: 20px; font-size: 12px; }
+          .info-table td { padding: 4px 0; }
+          .info-table td:nth-child(1) { width: 120px; font-weight: bold; }
+          .info-table td:nth-child(2) { width: 10px; }
+          .data-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+          .data-table th, .data-table td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; }
+          .data-table th { background-color: #f8fafc; font-weight: bold; color: #0f172a; }
+          .text-center { text-align: center; }
+          .footer { margin-top: 40px; text-align: right; font-size: 12px; }
+          .footer p { margin: 4px 0; }
+          .signature-space { height: 70px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>DAFTAR NILAI</h1>
+          <p>${assessment.title}</p>
+        </div>
+        
+        <table class="info-table">
+          <tr><td>Mata Pelajaran</td><td>:</td><td>${subj}</td></tr>
+          <tr><td>Kelas</td><td>:</td><td>${cls}</td></tr>
+          <tr><td>Jenis Penilaian</td><td>:</td><td>${assessment.type}</td></tr>
+          <tr><td>Tanggal</td><td>:</td><td>${assessment.date}</td></tr>
+        </table>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th class="text-center" style="width: 40px;">No</th>
+              <th style="width: 80px;">NIS</th>
+              <th>Nama Siswa</th>
+              <th class="text-center" style="width: 60px;">Nilai</th>
+              <th>Catatan</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${assessment.grades.map((g, idx) => `
+              <tr>
+                <td class="text-center">${idx + 1}</td>
+                <td>${g.studentNis}</td>
+                <td>${g.studentName}</td>
+                <td class="text-center"><strong>${g.score}</strong></td>
+                <td>${g.notes || '-'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <div class="footer">
+          <p>................................., ${new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+          <p>Guru Mata Pelajaran</p>
+          <div class="signature-space"></div>
+          <p><strong>${currentTeacher.name}</strong></p>
+          <p>NIP. ${currentTeacher.nip || '-'}</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(htmlDocument);
+      printWindow.document.close();
+      printWindow.onload = () => {
+        printWindow.focus();
+        printWindow.print();
+      };
+    }
+  };
 
   const exportGradesExcel = (selectedExamId: string) => {
     const exam = exams.find(e => e.id === selectedExamId);
@@ -1328,6 +1494,81 @@ export default function TeacherPanel({
   // --- 4.6. DAFTAR NILAI STATE ---
   const [selectedClassForGrades, setSelectedClassForGrades] = useState<string>('');
   const [selectedExamForGrades, setSelectedExamForGrades] = useState<string>('');
+  const [selectedManualAssessment, setSelectedManualAssessment] = useState<string>('');
+  const [showManualAssessmentForm, setShowManualAssessmentForm] = useState(false);
+  const [editingManualAssessment, setEditingManualAssessment] = useState<ManualAssessment | null>(null);
+
+  const [manualTitle, setManualTitle] = useState('');
+  const [manualSubjectId, setManualSubjectId] = useState('');
+  const [manualType, setManualType] = useState('Praktikum');
+  const [manualDate, setManualDate] = useState('');
+  const [manualGrades, setManualGrades] = useState<ManualGrade[]>([]);
+
+  const handleOpenManualForm = (assessment?: ManualAssessment) => {
+    if (assessment) {
+      setEditingManualAssessment(assessment);
+      setManualTitle(assessment.title);
+      setManualSubjectId(assessment.subjectId);
+      setManualType(assessment.type);
+      setManualDate(assessment.date);
+      setManualGrades(assessment.grades);
+    } else {
+      setEditingManualAssessment(null);
+      setManualTitle('');
+      setManualSubjectId(subjects.length > 0 ? subjects[0].id : '');
+      setManualType('Praktikum');
+      setManualDate(new Date().toISOString().split('T')[0]);
+      
+      const classStudents = students.filter(s => s.classId === selectedClassForGrades);
+      setManualGrades(classStudents.map(s => ({
+        studentId: s.id,
+        studentName: s.name,
+        studentNis: s.nis,
+        score: 0,
+        notes: ''
+      })));
+    }
+    setShowManualAssessmentForm(true);
+  };
+
+  const handleSaveManual = () => {
+    if (!manualTitle || !manualSubjectId || !manualDate) {
+      toast.error('Mohon lengkapi judul, mapel, dan tanggal.');
+      return;
+    }
+    
+    if (editingManualAssessment && onUpdateManualAssessment) {
+      onUpdateManualAssessment({
+        ...editingManualAssessment,
+        title: manualTitle,
+        subjectId: manualSubjectId,
+        type: manualType,
+        date: manualDate,
+        grades: manualGrades
+      });
+      toast.success('Penilaian manual diperbarui!');
+    } else if (onSaveManualAssessment) {
+      onSaveManualAssessment({
+        title: manualTitle,
+        classId: selectedClassForGrades,
+        subjectId: manualSubjectId,
+        teacherId: currentTeacher.id,
+        date: manualDate,
+        type: manualType,
+        grades: manualGrades
+      });
+      toast.success('Penilaian manual disimpan!');
+    }
+    setShowManualAssessmentForm(false);
+  };
+
+  const handleGradeChange = (studentId: string, score: number) => {
+    setManualGrades(prev => prev.map(g => g.studentId === studentId ? { ...g, score } : g));
+  };
+
+  const handleGradeNoteChange = (studentId: string, notes: string) => {
+    setManualGrades(prev => prev.map(g => g.studentId === studentId ? { ...g, notes } : g));
+  };
 
   // Custom exam questions creator (shared between exams and question bank)
   const [targetQuestionCount, setTargetQuestionCount] = useState<number>(10);
@@ -2354,12 +2595,28 @@ export default function TeacherPanel({
                   )}
                 </div>
 
-                <button
-                  type="submit"
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-6 rounded-xl transition cursor-pointer text-sm shadow-md flex items-center justify-center gap-2"
-                >
-                  <Save className="w-4 h-4" /> Simpan Jurnal & Presensi Kelas ke Sheets
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    type="submit"
+                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-6 rounded-xl transition cursor-pointer text-sm shadow-md flex items-center justify-center gap-2"
+                  >
+                    <Save className="w-4 h-4" /> {editingJournalId ? 'Update Jurnal & Presensi' : 'Simpan Jurnal & Presensi Kelas ke Sheets'}
+                  </button>
+                  {editingJournalId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingJournalId(null);
+                        setJournalTopic('');
+                        setJournalObjectives('');
+                        setJournalNotes('');
+                      }}
+                      className="px-6 py-3.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl transition cursor-pointer text-sm shadow-sm"
+                    >
+                      Batal Edit
+                    </button>
+                  )}
+                </div>
               </form>
             </div>
           )}
@@ -2442,12 +2699,13 @@ export default function TeacherPanel({
                         <th className="px-4 py-3">Topik Pembelajaran</th>
                         <th className="px-4 py-3 text-center">Presensi & Siswa Tidak Hadir</th>
                         <th className="px-4 py-3">Catatan / Kendala</th>
+                        <th className="px-4 py-3 text-right">Aksi</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
                       {dailyFiltered.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                          <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
                             Tidak ada jurnal mengajar tercatat pada tanggal {recapFilterDate}.
                           </td>
                         </tr>
@@ -2483,6 +2741,24 @@ export default function TeacherPanel({
                               </td>
                               <td className="px-4 py-3.5 text-slate-600 text-[11px]">
                                 {j.notes || '-'}
+                              </td>
+                              <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                                <div className="flex items-center justify-end gap-1">
+                                  <button
+                                    onClick={() => handleEditJournalAction(j)}
+                                    className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                                    title="Edit Jurnal"
+                                  >
+                                    <Edit3 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteJournalAction(j.id)}
+                                    className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition"
+                                    title="Hapus Jurnal"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
@@ -2571,12 +2847,13 @@ export default function TeacherPanel({
                         <th className="px-4 py-3">Kelas & Mapel</th>
                         <th className="px-4 py-3">Topik Pembelajaran</th>
                         <th className="px-4 py-3 text-center">Presensi & Siswa Tidak Hadir</th>
+                        <th className="px-4 py-3 text-right">Aksi</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
                       {weeklyFiltered.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                          <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
                             Belum ada aktivitas jurnal mengajar dalam 7 hari terakhir.
                           </td>
                         </tr>
@@ -2615,6 +2892,24 @@ export default function TeacherPanel({
                               </td>
                               <td className="px-4 py-3.5 align-top">
                                 {renderAbsentStudentsCell(j)}
+                              </td>
+                              <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                                <div className="flex items-center justify-end gap-1">
+                                  <button
+                                    onClick={() => handleEditJournalAction(j)}
+                                    className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                                    title="Edit Jurnal"
+                                  >
+                                    <Edit3 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteJournalAction(j.id)}
+                                    className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition"
+                                    title="Hapus Jurnal"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
@@ -2704,12 +2999,13 @@ export default function TeacherPanel({
                         <th className="px-4 py-3">Topik & Capaian Pembelajaran</th>
                         <th className="px-4 py-3 text-center">Presensi & Siswa Tidak Hadir</th>
                         <th className="px-4 py-3">Catatan</th>
+                        <th className="px-4 py-3 text-right">Aksi</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
                       {monthlyFiltered.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
+                          <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
                             Belum ada jurnal tercatat untuk periode bulan {formatMonthIndo(recapFilterMonth)}.
                           </td>
                         </tr>
@@ -2721,7 +3017,6 @@ export default function TeacherPanel({
                           const sakit = j.attendance.filter(a => a.status === 'Sakit').length;
                           const izin = j.attendance.filter(a => a.status === 'Izin').length;
                           const alpa = j.attendance.filter(a => a.status === 'Alpa').length;
-
                           return (
                             <tr key={j.id} className="hover:bg-slate-50 transition">
                               <td className="px-4 py-3.5 whitespace-nowrap font-bold text-slate-900">
@@ -2748,6 +3043,24 @@ export default function TeacherPanel({
                               </td>
                               <td className="px-4 py-3.5 text-[11px] text-slate-600">
                                 {j.notes || '-'}
+                              </td>
+                              <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                                <div className="flex items-center justify-end gap-1">
+                                  <button
+                                    onClick={() => handleEditJournalAction(j)}
+                                    className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                                    title="Edit Jurnal"
+                                  >
+                                    <Edit3 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteJournalAction(j.id)}
+                                    className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition"
+                                    title="Hapus Jurnal"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
@@ -3240,9 +3553,7 @@ export default function TeacherPanel({
                           )}
                           {onDeleteTeachingModule && (
                             <button
-                              onClick={() => {
-                                if (window.confirm('Yakin hapus item ini?')) onDeleteTeachingModule(mod.id);
-                              }}
+                              onClick={() => onDeleteTeachingModule(mod.id)}
                               className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                               title="Hapus"
                             >
@@ -3383,16 +3694,16 @@ export default function TeacherPanel({
               <h3 className="font-bold text-slate-900 text-lg">Daftar Nilai Siswa</h3>
               <p className="text-slate-500 text-xs mt-0.5">Lihat hasil pengerjaan siswa dari paket ujian dan tugas yang telah diberikan.</p>
             </div>
-            {selectedExamForGrades && (
+            {(selectedExamForGrades || selectedManualAssessment) && (
               <div className="flex gap-2">
                 <button
-                  onClick={() => exportGradesExcel(selectedExamForGrades)}
+                  onClick={() => selectedExamForGrades ? exportGradesExcel(selectedExamForGrades) : exportManualGradesExcel(selectedManualAssessment)}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm px-4 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <FileSpreadsheet className="w-4 h-4" /> Unduh Excel
                 </button>
                 <button
-                  onClick={() => printGradesDocument(selectedExamForGrades)}
+                  onClick={() => selectedExamForGrades ? printGradesDocument(selectedExamForGrades) : printManualGradesDocument(selectedManualAssessment)}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm px-4 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <Printer className="w-4 h-4" /> Cetak PDF
@@ -3434,50 +3745,172 @@ export default function TeacherPanel({
               </div>
             ) : (
               <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-                {!selectedExamForGrades ? (
-                  <div className="space-y-4">
-                    <button
-                      onClick={() => setSelectedClassForGrades('')}
-                      className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 bg-indigo-50 px-3 py-1.5 rounded-lg w-fit transition"
-                    >
-                      ← Kembali ke Daftar Kelas
-                    </button>
-                    <p className="text-sm font-bold text-slate-700">Daftar Tugas & Ujian Kelas {getClassName(selectedClassForGrades)}:</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {teacherExams.filter(e => Array.isArray(e.classId) ? e.classId.includes(selectedClassForGrades) : e.classId === selectedClassForGrades).map(exam => {
-                        const submissionCount = teacherSubmissions.filter(s => s.examId === exam.id).length;
-                        return (
-                          <button
-                            key={exam.id}
-                            onClick={() => setSelectedExamForGrades(exam.id)}
-                            className="p-4 bg-white border border-slate-200 rounded-2xl hover:border-indigo-300 hover:shadow-md transition text-left space-y-2 flex flex-col justify-between"
-                          >
-                            <div>
-                              <h5 className="font-extrabold text-slate-900">{exam.title}</h5>
-                              <p className="text-xs text-slate-500 mt-1">{getSubjectName(exam.subjectId)}</p>
-                            </div>
-                            <div className="flex justify-between items-center w-full mt-4 pt-3 border-t border-slate-100">
-                              <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md">{submissionCount} Siswa Mengerjakan</span>
-                              <span className="text-[11px] font-bold text-indigo-600 flex items-center gap-1">Lihat Nilai <FileText className="w-3.5 h-3.5" /></span>
-                            </div>
-                          </button>
-                        );
-                      })}
+                {showManualAssessmentForm ? (
+                  <div className="space-y-4 bg-white p-5 rounded-2xl border border-slate-200">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <h4 className="font-bold text-slate-800">{editingManualAssessment ? 'Edit Penilaian Manual' : 'Input Nilai Manual'}</h4>
+                      <button onClick={() => setShowManualAssessmentForm(false)} className="text-slate-400 hover:text-slate-600">
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Mata Pelajaran</label>
+                        <select
+                          value={manualSubjectId}
+                          onChange={(e) => setManualSubjectId(e.target.value)}
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                        >
+                          {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Jenis Penilaian</label>
+                        <select
+                          value={manualType}
+                          onChange={(e) => setManualType(e.target.value)}
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                        >
+                          <option value="Praktikum">Praktikum</option>
+                          <option value="Tugas Kelompok">Tugas Kelompok</option>
+                          <option value="Presentasi">Presentasi</option>
+                          <option value="Sikap / Perilaku">Sikap / Perilaku</option>
+                          <option value="Proyek">Proyek</option>
+                          <option value="Lainnya">Lainnya</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Judul / Keterangan</label>
+                        <input
+                          type="text"
+                          value={manualTitle}
+                          onChange={(e) => setManualTitle(e.target.value)}
+                          placeholder="Misal: Praktikum Difraksi Cahaya"
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Tanggal</label>
+                        <input
+                          type="date"
+                          value={manualDate}
+                          onChange={(e) => setManualDate(e.target.value)}
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="mt-4 border border-slate-200 rounded-xl overflow-hidden">
+                      <table className="w-full text-left text-sm whitespace-nowrap">
+                        <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs uppercase">
+                          <tr>
+                            <th className="px-4 py-3 font-bold w-12 text-center">No</th>
+                            <th className="px-4 py-3 font-bold">NIS</th>
+                            <th className="px-4 py-3 font-bold w-1/3">Nama Siswa</th>
+                            <th className="px-4 py-3 font-bold text-center w-32">Nilai (0-100)</th>
+                            <th className="px-4 py-3 font-bold text-center">Catatan (Opsional)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {manualGrades.map((g, idx) => (
+                            <tr key={g.studentId} className="hover:bg-slate-50 transition-colors">
+                              <td className="px-4 py-2.5 text-center text-slate-500">{idx + 1}</td>
+                              <td className="px-4 py-2.5 font-mono text-xs text-slate-600">{g.studentNis}</td>
+                              <td className="px-4 py-2.5 font-bold text-slate-800">{g.studentName}</td>
+                              <td className="px-4 py-2.5">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={g.score}
+                                  onChange={(e) => handleGradeChange(g.studentId, Number(e.target.value))}
+                                  className="w-full border border-slate-300 rounded-md px-2 py-1.5 text-center text-sm font-bold focus:ring-2 focus:ring-indigo-500"
+                                />
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <input
+                                  type="text"
+                                  value={g.notes || ''}
+                                  onChange={(e) => handleGradeNoteChange(g.studentId, e.target.value)}
+                                  placeholder="Catatan..."
+                                  className="w-full border border-slate-300 rounded-md px-2 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500"
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    
+                    <div className="flex justify-end pt-4 border-t border-slate-100">
+                      <button
+                        onClick={handleSaveManual}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2 rounded-xl transition flex items-center gap-2"
+                      >
+                        <Save className="w-4 h-4" /> {editingManualAssessment ? 'Simpan Perubahan' : 'Simpan Penilaian'}
+                      </button>
                     </div>
                   </div>
-                ) : (
+                ) : selectedManualAssessment ? (
+                  <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                    <div className="flex items-center gap-3 bg-slate-50 px-4 py-3 rounded-xl border border-slate-200">
+                      <button
+                        onClick={() => setSelectedManualAssessment('')}
+                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 bg-white border border-indigo-100 px-3 py-1.5 rounded-lg transition cursor-pointer"
+                      >
+                        ← Kembali
+                      </button>
+                      <div className="h-4 w-px bg-slate-300"></div>
+                      <h4 className="font-bold text-slate-800 text-sm">{manualAssessments?.find(m => m.id === selectedManualAssessment)?.title}</h4>
+                      <span className="text-[11px] font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded ml-2">
+                        {manualAssessments?.find(m => m.id === selectedManualAssessment)?.type}
+                      </span>
+                    </div>
+                    
+                    <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                      <table className="w-full text-left text-sm whitespace-nowrap">
+                        <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs uppercase">
+                          <tr>
+                            <th className="px-4 py-3 font-bold w-12 text-center">No</th>
+                            <th className="px-4 py-3 font-bold">NIS</th>
+                            <th className="px-4 py-3 font-bold w-1/3">Nama Siswa</th>
+                            <th className="px-4 py-3 font-bold text-center">Nilai</th>
+                            <th className="px-4 py-3 font-bold">Catatan</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {manualAssessments?.find(m => m.id === selectedManualAssessment)?.grades.map((g, idx) => (
+                            <tr key={g.studentId} className="hover:bg-slate-50 transition-colors">
+                              <td className="px-4 py-3 text-center text-slate-500">{idx + 1}</td>
+                              <td className="px-4 py-3 font-mono text-xs text-slate-600">{g.studentNis}</td>
+                              <td className="px-4 py-3 font-bold text-slate-800">{g.studentName}</td>
+                              <td className="px-4 py-3 text-center">
+                                <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-md font-extrabold text-sm ${g.score >= 70 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                  {g.score}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-xs text-slate-500">
+                                {g.notes || '-'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : selectedExamForGrades ? (
                   <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
                     <div className="flex items-center gap-3 bg-slate-50 px-4 py-3 rounded-xl border border-slate-200">
                       <button
                         onClick={() => setSelectedExamForGrades('')}
-                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 bg-white border border-indigo-100 px-3 py-1.5 rounded-lg transition"
+                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 bg-white border border-indigo-100 px-3 py-1.5 rounded-lg transition cursor-pointer"
                       >
                         ← Kembali
                       </button>
                       <div className="h-4 w-px bg-slate-300"></div>
                       <h4 className="font-bold text-slate-800 text-sm">{teacherExams.find(e => e.id === selectedExamForGrades)?.title}</h4>
                     </div>
-
+                    
                     <div className="overflow-x-auto border border-slate-200 rounded-xl">
                       <table className="w-full text-left text-sm whitespace-nowrap">
                         <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs uppercase">
@@ -3520,8 +3953,102 @@ export default function TeacherPanel({
                       </table>
                     </div>
                   </div>
-                )}
-              </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                      <button
+                        onClick={() => setSelectedClassForGrades('')}
+                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 bg-indigo-50 px-3 py-1.5 rounded-lg w-fit transition cursor-pointer"
+                      >
+                        ← Kembali ke Daftar Kelas
+                      </button>
+                      <button
+                        onClick={() => handleOpenManualForm()}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" /> Input Nilai Manual
+                      </button>
+                    </div>
+
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2 border-b border-slate-200 pb-2">
+                        <FileText className="w-4 h-4 text-indigo-600" /> Ujian & Tugas CBT
+                      </h4>
+                      {teacherExams.filter(e => Array.isArray(e.classId) ? e.classId.includes(selectedClassForGrades) : e.classId === selectedClassForGrades).length === 0 ? (
+                        <p className="text-sm text-slate-500 italic">Belum ada tugas CBT di kelas ini.</p>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {teacherExams.filter(e => Array.isArray(e.classId) ? e.classId.includes(selectedClassForGrades) : e.classId === selectedClassForGrades).map(exam => {
+                            const submissionCount = teacherSubmissions.filter(s => s.examId === exam.id).length;
+                            return (
+                              <button
+                                key={exam.id}
+                                onClick={() => setSelectedExamForGrades(exam.id)}
+                                className="p-4 bg-white border border-slate-200 rounded-2xl hover:border-indigo-300 hover:shadow-md transition text-left space-y-2 flex flex-col justify-between cursor-pointer"
+                              >
+                                <div>
+                                  <h5 className="font-extrabold text-slate-900">{exam.title}</h5>
+                                  <p className="text-xs text-slate-500 mt-1">{getSubjectName(exam.subjectId)}</p>
+                                </div>
+                                <div className="flex justify-between items-center w-full mt-4 pt-3 border-t border-slate-100">
+                                  <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md">{submissionCount} Siswa Mengerjakan</span>
+                                  <span className="text-[11px] font-bold text-indigo-600 flex items-center gap-1">Lihat Nilai <FileText className="w-3.5 h-3.5" /></span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2 border-b border-slate-200 pb-2">
+                        <Clipboard className="w-4 h-4 text-emerald-600" /> Penilaian Manual
+                      </h4>
+                      {manualAssessments?.filter(m => m.classId === selectedClassForGrades).length === 0 ? (
+                        <p className="text-sm text-slate-500 italic">Belum ada penilaian manual di kelas ini.</p>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {manualAssessments?.filter(m => m.classId === selectedClassForGrades).map(assessment => (
+                            <div
+                              key={assessment.id}
+                              className="p-4 bg-white border border-slate-200 rounded-2xl hover:border-emerald-300 hover:shadow-md transition text-left space-y-2 flex flex-col justify-between group"
+                            >
+                              <div>
+                                <div className="flex justify-between items-start">
+                                  <h5 className="font-extrabold text-slate-900">{assessment.title}</h5>
+                                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => handleOpenManualForm(assessment)} className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 cursor-pointer" title="Edit">
+                                      <Edit3 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button onClick={() => { if(window.confirm('Hapus penilaian?')) onDeleteManualAssessment?.(assessment.id); }} className="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 cursor-pointer" title="Hapus">
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="flex flex-wrap gap-2 mt-1.5">
+                                  <p className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">{assessment.type}</p>
+                                  <p className="text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">{getSubjectName(assessment.subjectId)}</p>
+                                  <p className="text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">{assessment.date}</p>
+                                </div>
+                              </div>
+                              <div className="flex justify-between items-center w-full mt-4 pt-3 border-t border-slate-100">
+                                <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md">{assessment.grades.length} Nilai</span>
+                                <button 
+                                  onClick={() => setSelectedManualAssessment(assessment.id)}
+                                  className="text-[11px] font-bold text-emerald-600 hover:text-emerald-800 flex items-center gap-1 cursor-pointer"
+                                >
+                                  Lihat Nilai <FileText className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+                )}              </div>
             )}
           </div>
         </div>

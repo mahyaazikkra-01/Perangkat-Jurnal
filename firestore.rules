@@ -47,6 +47,11 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isSignedIn();
     }
+    match /manualAssessments/{assessmentId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
     match /cheatLogs/{cheatLogId} {
       allow read: if isSignedIn();
       allow write: if isSignedIn();

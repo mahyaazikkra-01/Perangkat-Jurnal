@@ -1124,7 +1124,7 @@ export default function AdminPanel({
               : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600'
           }`}
         >
-          <span className="text-lg flex items-center justify-center w-[20px]"><MonitorSmartphone className="w-5 h-5" /></span> Pengaturan Tampilan
+          <span className="text-lg flex items-center justify-center w-[20px]"><MonitorSmartphone className="w-5 h-5" /></span> Pengaturan Sekolah / Tampilan
         </button>
         </div>
       </div>
@@ -1322,8 +1322,8 @@ export default function AdminPanel({
         <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-6 space-y-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h3 className="font-bold text-slate-900 text-lg">Pengaturan Tampilan & Aplikasi</h3>
-              <p className="text-slate-500 text-xs">Sesuaikan nama sekolah, deskripsi, dan teks di seluruh aplikasi.</p>
+              <h3 className="font-bold text-slate-900 text-lg">Pengaturan Sekolah & Tampilan</h3>
+              <p className="text-slate-500 text-xs">Sesuaikan nama sekolah, password admin, deskripsi, dan teks di seluruh aplikasi.</p>
             </div>
             {onUpdateSchoolConfig && (
               <button 
@@ -1402,6 +1402,19 @@ export default function AdminPanel({
                   onChange={e => setLocalConfig({...localConfig, footerText: e.target.value})}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 transition"
                 />
+              </div>
+              <div className="pt-2 border-t border-slate-100">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Password Admin</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={localConfig.adminPassword || ''} 
+                    onChange={e => setLocalConfig({...localConfig, adminPassword: e.target.value})}
+                    placeholder="Kosongkan untuk menggunakan default (admin123)"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono bg-slate-50 focus:bg-white focus:ring-2 focus:ring-rose-500 transition"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">Username admin selalu "admin". Ubah password ini untuk keamanan.</p>
               </div>
             </div>
           </div>

@@ -256,15 +256,28 @@ export interface GlobalAnnouncement {
   id: string;
   title: string;
   content: string;
-  targetRole: 'All' | 'Teacher' | 'Student';
-  createdAt: string;
-}
-
-export interface GlobalAnnouncement {
-  id: string;
-  title: string;
-  content: string;
   targetRole: 'Teacher' | 'Student' | 'All';
   priority: 'info' | 'penting' | 'mendesak';
   createdAt: string;
 }
+
+export interface ManualGrade {
+  studentId: string;
+  studentName: string;
+  studentNis: string;
+  score: number;
+  notes?: string;
+}
+
+export interface ManualAssessment {
+  id: string;
+  title: string;
+  classId: string;
+  subjectId: string;
+  teacherId: string;
+  date: string;
+  type: string;
+  grades: ManualGrade[];
+  createdAt: string;
+}
+

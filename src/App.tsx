@@ -1,7 +1,7 @@
 import toast, { Toaster } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { 
-  Teacher, Student, ClassItem, SubjectItem, Material, JournalEntry, Exam, CheatLog, ExamSubmission, TeacherAnnouncement, RegistrationRequest, SchoolConfig, QuestionBank, ShareRequest, GlobalAnnouncement, TeacherScheduleNote, TeachingModule 
+  Teacher, Student, ClassItem, SubjectItem, Material, JournalEntry, Exam, CheatLog, ExamSubmission, TeacherAnnouncement, RegistrationRequest, SchoolConfig, QuestionBank, ShareRequest, GlobalAnnouncement, TeacherScheduleNote, TeachingModule, ManualAssessment 
 } from './types';
 import AdminPanel from './components/AdminPanel';
 import TeacherPanel from './components/TeacherPanel';
@@ -274,6 +274,7 @@ export default function App() {
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [cheatLogs, setCheatLogs] = useState<CheatLog[]>([]);
   const [submissions, setSubmissions] = useState<ExamSubmission[]>([]);
+  const [manualAssessments, setManualAssessments] = useState<ManualAssessment[]>([]);
   const [announcements, setAnnouncements] = useState<TeacherAnnouncement[]>([]);
   const [shareRequests, setShareRequests] = useState<ShareRequest[]>([]);
   const [globalAnnouncements, setGlobalAnnouncements] = useState<GlobalAnnouncement[]>([]);
@@ -308,6 +309,7 @@ export default function App() {
     const unsubCheatLogs = syncCollection('cheatLogs', setCheatLogs, []);
     const unsubScheduleNotes = syncCollection('scheduleNotes', setScheduleNotes, []);
     const unsubSubmissions = syncCollection('submissions', setSubmissions, []);
+    const unsubManualAssessments = syncCollection('manualAssessments', setManualAssessments, []);
     const unsubAnnouncements = syncCollection('announcements', setAnnouncements, SEED_ANNOUNCEMENTS);
     const unsubRegistrations = syncCollection('registrations', setRegistrations, SEED_REGISTRATIONS);
     const unsubShareRequests = syncCollection('shareRequests', setShareRequests, []);
@@ -591,12 +593,37 @@ export default function App() {
     deleteDocument('questionBanks', id);
   };
 
+  const handleSaveManualAssessment = (assessment: Omit<ManualAssessment, 'id' | 'createdAt'>) => {
+    const newAss: ManualAssessment = {
+      ...assessment,
+      id: `ma_${Math.random().toString(36).substring(7)}`,
+      createdAt: new Date().toISOString()
+    };
+    addDocument('manualAssessments', newAss);
+  };
+
+  const handleUpdateManualAssessment = (updated: ManualAssessment) => {
+    updateDocument('manualAssessments', updated);
+  };
+
+  const handleDeleteManualAssessment = (id: string) => {
+    deleteDocument('manualAssessments', id);
+  };
+
   const handleSaveJournal = (newEntry: Omit<JournalEntry, 'id'>) => {
     const entryNode: JournalEntry = {
       ...newEntry,
       id: `j_${Math.random().toString(36).substring(7)}`
     };
     addDocument('journals', entryNode);
+  };
+
+  const handleUpdateJournal = (updated: JournalEntry) => {
+    updateDocument('journals', updated);
+  };
+
+  const handleDeleteJournal = (id: string) => {
+    deleteDocument('journals', id);
   };
 
   const handleAddCheatLog = React.useCallback((log: Omit<CheatLog, 'id' | 'timestamp'>) => {
@@ -1195,6 +1222,7 @@ export default function App() {
                 questionBanks={questionBanks}
                 journals={journals}
                 submissions={submissions}
+                manualAssessments={manualAssessments}
                 announcements={announcements}
                 shareRequests={shareRequests}
                 teachers={teachers}
@@ -1209,7 +1237,12 @@ export default function App() {
                 onDeleteExam={handleDeleteExam}
                 onSaveQuestionBank={handleSaveQuestionBank}
                 onDeleteQuestionBank={handleDeleteQuestionBank}
+                onSaveManualAssessment={handleSaveManualAssessment}
+                onUpdateManualAssessment={handleUpdateManualAssessment}
+                onDeleteManualAssessment={handleDeleteManualAssessment}
                 onSaveJournal={handleSaveJournal}
+                onUpdateJournal={handleUpdateJournal}
+                onDeleteJournal={handleDeleteJournal}
                 onUpdateTeacher={handleUpdateTeacher}
                 onSaveAnnouncement={handleSaveAnnouncement}
                 onDeleteAnnouncement={handleDeleteAnnouncement}
