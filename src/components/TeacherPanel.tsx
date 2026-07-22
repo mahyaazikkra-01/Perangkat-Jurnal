@@ -703,6 +703,20 @@ export default function TeacherPanel({
     XLSX.writeFile(wb, `${filenameTitle.replace(/\s+/g, '_')}.xlsx`);
   };
 
+  const sortJournalsAscending = (a: JournalEntry, b: JournalEntry) => {
+    const dateCmp = a.date.localeCompare(b.date);
+    if (dateCmp !== 0) return dateCmp;
+    const startA = a.startPeriod || 0;
+    const startB = b.startPeriod || 0;
+    return startA - startB;
+  };
+
+  const formatDateToDDMMYYYY = (dateStr: string) => {
+    if (!dateStr || !dateStr.includes('-')) return dateStr;
+    const parts = dateStr.split('-');
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  };
+
   const generateAndOpenPrintWindow = (entriesToPrint: JournalEntry[], title: string, subtitle: string) => {
     if (entriesToPrint.length === 0) {
       toast('Tidak ada data jurnal untuk dicetak!');
@@ -718,6 +732,7 @@ export default function TeacherPanel({
       
       const hari = getDayNameIndo(j.date);
       const jamStr = (j.startPeriod && j.endPeriod) ? `Jam Ke ${j.startPeriod} - ${j.endPeriod}` : '-';
+      const formattedDate = formatDateToDDMMYYYY(j.date);
 
       let absenHtml = '<span style="color:#059669;font-weight:bold;">Semua Hadir (100%)</span>';
       if (sakitNames.length + izinNames.length + alpaNames.length > 0) {
@@ -731,7 +746,7 @@ export default function TeacherPanel({
       return `
         <tr>
           <td style="text-align:center;">${idx + 1}</td>
-          <td style="white-space:nowrap;"><b>${hari}</b><br/>${j.date}</td>
+          <td style="white-space:nowrap;"><b>${hari}</b><br/>${formattedDate}</td>
           <td style="text-align:center;">${jamStr}</td>
           <td><b>${cls}</b><br/><span style="color:#475569;">${subj}</span></td>
           <td><b>${j.topic}</b>${j.learningObjectives ? `<br/><small style="color:#64748b;">TP: ${j.learningObjectives}</small>` : ''}</td>
@@ -854,13 +869,23 @@ export default function TeacherPanel({
     if (!assessment) return;
     const cls = getClassName(assessment.classId);
     
-    const data = assessment.grades.map((g, idx) => ({
-      'No': idx + 1,
-      'NIS': g.studentNis,
-      'Nama Siswa': g.studentName,
-      'Nilai': g.score,
-      'Catatan': g.notes || ''
-    }));
+    const criteriaList = assessment.criteriaNames || [];
+    
+    const data = assessment.grades.map((g, idx) => {
+      const row: Record<string, string | number> = {
+        'No': idx + 1,
+        'NIS': g.studentNis,
+        'Nama Siswa': g.studentName,
+        'Nilai Angka': g.score,
+      };
+      
+      criteriaList.forEach(criteria => {
+        row[criteria] = g.criteriaGrades?.[criteria] || 'B';
+      });
+      
+      row['Catatan'] = g.notes || '';
+      return row;
+    });
 
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
@@ -917,7 +942,8 @@ export default function TeacherPanel({
               <th class="text-center" style="width: 40px;">No</th>
               <th style="width: 80px;">NIS</th>
               <th>Nama Siswa</th>
-              <th class="text-center" style="width: 60px;">Nilai</th>
+              <th class="text-center" style="width: 80px;">Nilai Angka</th>
+              ${(assessment.criteriaNames || []).map(c => `<th class="text-center" style="width: 70px;">${c}</th>`).join('')}
               <th>Catatan</th>
             </tr>
           </thead>
@@ -928,6 +954,7 @@ export default function TeacherPanel({
                 <td>${g.studentNis}</td>
                 <td>${g.studentName}</td>
                 <td class="text-center"><strong>${g.score}</strong></td>
+                ${(assessment.criteriaNames || []).map(c => `<td class="text-center">${g.criteriaGrades?.[c] || 'B'}</td>`).join('')}
                 <td>${g.notes || '-'}</td>
               </tr>
             `).join('')}
@@ -1343,7 +1370,7 @@ export default function TeacherPanel({
   const [materiTitle, setMateriTitle] = useState('');
   const [materiClasses, setMateriClasses] = useState<string[]>([]);
   const [materiSubject, setMateriSubject] = useState('');
-  const [materiType, setMateriType] = useState<'PDF' | 'Video' | 'Link' | 'Article'>('Article');
+  const [materiType, setMateriType] = useState<'PDF' | 'Video' | 'Link' | 'Article' | 'Word' | 'Excel' | 'PPT'>('Article');
   const [materiUrl, setMateriUrl] = useState('');
   const [materiContent, setMateriContent] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -1503,6 +1530,8 @@ export default function TeacherPanel({
   const [manualType, setManualType] = useState('Praktikum');
   const [manualDate, setManualDate] = useState('');
   const [manualGrades, setManualGrades] = useState<ManualGrade[]>([]);
+  const [manualCriteria, setManualCriteria] = useState<string[]>([]);
+  const [newCriteriaInput, setNewCriteriaInput] = useState('');
 
   const handleOpenManualForm = (assessment?: ManualAssessment) => {
     if (assessment) {
@@ -1512,19 +1541,29 @@ export default function TeacherPanel({
       setManualType(assessment.type);
       setManualDate(assessment.date);
       setManualGrades(assessment.grades);
+      setManualCriteria(assessment.criteriaNames || []);
     } else {
       setEditingManualAssessment(null);
       setManualTitle('');
       setManualSubjectId(subjects.length > 0 ? subjects[0].id : '');
       setManualType('Praktikum');
       setManualDate(new Date().toISOString().split('T')[0]);
+      setManualCriteria([]);
       
-      const classStudents = students.filter(s => s.classId === selectedClassForGrades);
+      const classStudents = students
+        .filter(s => s.classId === selectedClassForGrades)
+        .sort((a, b) => {
+          if (a.noAbsen != null && b.noAbsen != null) return a.noAbsen - b.noAbsen;
+          if (a.noAbsen != null) return -1;
+          if (b.noAbsen != null) return 1;
+          return a.name.localeCompare(b.name);
+        });
       setManualGrades(classStudents.map(s => ({
         studentId: s.id,
         studentName: s.name,
         studentNis: s.nis,
         score: 0,
+        criteriaGrades: {},
         notes: ''
       })));
     }
@@ -1544,6 +1583,7 @@ export default function TeacherPanel({
         subjectId: manualSubjectId,
         type: manualType,
         date: manualDate,
+        criteriaNames: manualCriteria,
         grades: manualGrades
       });
       toast.success('Penilaian manual diperbarui!');
@@ -1555,6 +1595,7 @@ export default function TeacherPanel({
         teacherId: currentTeacher.id,
         date: manualDate,
         type: manualType,
+        criteriaNames: manualCriteria,
         grades: manualGrades
       });
       toast.success('Penilaian manual disimpan!');
@@ -1568,6 +1609,21 @@ export default function TeacherPanel({
 
   const handleGradeNoteChange = (studentId: string, notes: string) => {
     setManualGrades(prev => prev.map(g => g.studentId === studentId ? { ...g, notes } : g));
+  };
+
+  const handleGradeCriteriaChange = (studentId: string, criteriaName: string, val: string) => {
+    setManualGrades(prev => prev.map(g => {
+      if (g.studentId === studentId) {
+        return {
+          ...g,
+          criteriaGrades: {
+            ...(g.criteriaGrades || {}),
+            [criteriaName]: val
+          }
+        };
+      }
+      return g;
+    }));
   };
 
   // Custom exam questions creator (shared between exams and question bank)
@@ -2623,7 +2679,7 @@ export default function TeacherPanel({
 
           {/* SUB-TAB 2: REKAP HARIAN */}
           {journalSubTab === 'recap_daily' && (() => {
-            const dailyFiltered = journals.filter(j => j.date === recapFilterDate);
+            const dailyFiltered = journals.filter(j => j.date === recapFilterDate).sort(sortJournalsAscending);
             const totalJP = dailyFiltered.reduce((acc, j) => {
               const dur = (j.startPeriod && j.endPeriod) ? (j.endPeriod - j.startPeriod + 1) : 2;
               return acc + Math.max(0, dur);
@@ -2778,7 +2834,7 @@ export default function TeacherPanel({
             const weeklyFiltered = journals.filter(j => {
               const dTime = Date.parse(j.date);
               return !isNaN(dTime) && dTime >= sevenDaysAgo && dTime <= now + 86400000;
-            }).sort((a, b) => b.date.localeCompare(a.date));
+            }).sort(sortJournalsAscending);
 
             const totalWeeklyJP = weeklyFiltered.reduce((acc, j) => {
               const dur = (j.startPeriod && j.endPeriod) ? (j.endPeriod - j.startPeriod + 1) : 2;
@@ -2873,7 +2929,7 @@ export default function TeacherPanel({
                           return (
                             <tr key={j.id} className="hover:bg-slate-50 transition">
                               <td className="px-4 py-3.5 whitespace-nowrap font-bold text-slate-900">
-                                {dayStr}, {j.date}
+                                {dayStr}, {formatDateToDDMMYYYY(j.date)}
                               </td>
                               <td className="px-4 py-3.5 whitespace-nowrap">
                                 {j.startPeriod && j.endPeriod ? (
@@ -2924,7 +2980,7 @@ export default function TeacherPanel({
 
           {/* SUB-TAB 4: REKAP BULANAN */}
           {journalSubTab === 'recap_monthly' && (() => {
-            const monthlyFiltered = journals.filter(j => j.date.startsWith(recapFilterMonth)).sort((a, b) => b.date.localeCompare(a.date));
+            const monthlyFiltered = journals.filter(j => j.date.startsWith(recapFilterMonth)).sort(sortJournalsAscending);
             const totalMonthlyJP = monthlyFiltered.reduce((acc, j) => {
               const dur = (j.startPeriod && j.endPeriod) ? (j.endPeriod - j.startPeriod + 1) : 2;
               return acc + Math.max(0, dur);
@@ -3020,7 +3076,7 @@ export default function TeacherPanel({
                           return (
                             <tr key={j.id} className="hover:bg-slate-50 transition">
                               <td className="px-4 py-3.5 whitespace-nowrap font-bold text-slate-900">
-                                {j.date}
+                                {formatDateToDDMMYYYY(j.date)}
                               </td>
                               <td className="px-4 py-3.5 whitespace-nowrap">
                                 {j.startPeriod && j.endPeriod ? (
@@ -3320,6 +3376,9 @@ export default function TeacherPanel({
                         <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${
                           mat.fileType === 'PDF' ? 'bg-red-50 text-red-700 border border-red-100' :
                           mat.fileType === 'Video' ? 'bg-blue-50 text-blue-700 border border-blue-100' :
+                          mat.fileType === 'Word' ? 'bg-blue-50 text-blue-800 border border-blue-200' :
+                          mat.fileType === 'Excel' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                          mat.fileType === 'PPT' ? 'bg-orange-50 text-orange-700 border border-orange-200' :
                           'bg-slate-50 text-slate-700 border border-slate-100'
                         }`}>
                           {mat.fileType}
@@ -3800,6 +3859,59 @@ export default function TeacherPanel({
                       </div>
                     </div>
                     
+                    <div className="mt-4 p-4 border border-slate-200 rounded-xl bg-slate-50">
+                      <label className="block text-sm font-bold text-slate-700 mb-2">Penilaian Ranah Afektif / Psikomotorik (Opsional)</label>
+                      <p className="text-xs text-slate-500 mb-3">Tambahkan kriteria penilaian khusus (misal: Tanggung Jawab, Kerjasama tim, Penggunaan Alat) dengan skala nilai A-D.</p>
+                      
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {manualCriteria.map(criteria => (
+                          <span key={criteria} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-100 text-indigo-800 text-xs font-bold rounded-lg border border-indigo-200">
+                            {criteria}
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                setManualCriteria(prev => prev.filter(c => c !== criteria));
+                              }}
+                              className="text-indigo-500 hover:text-indigo-900 focus:outline-none"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      
+                      <div className="flex items-center gap-2 max-w-sm">
+                        <input
+                          type="text"
+                          value={newCriteriaInput}
+                          onChange={(e) => setNewCriteriaInput(e.target.value)}
+                          placeholder="Misal: Kerjasama Tim"
+                          className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              if (newCriteriaInput.trim() && !manualCriteria.includes(newCriteriaInput.trim())) {
+                                setManualCriteria([...manualCriteria, newCriteriaInput.trim()]);
+                                setNewCriteriaInput('');
+                              }
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (newCriteriaInput.trim() && !manualCriteria.includes(newCriteriaInput.trim())) {
+                              setManualCriteria([...manualCriteria, newCriteriaInput.trim()]);
+                              setNewCriteriaInput('');
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-sm font-bold transition"
+                        >
+                          Tambah
+                        </button>
+                      </div>
+                    </div>
+                    
                     <div className="mt-4 border border-slate-200 rounded-xl overflow-hidden">
                       <table className="w-full text-left text-sm whitespace-nowrap">
                         <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs uppercase">
@@ -3807,7 +3919,10 @@ export default function TeacherPanel({
                             <th className="px-4 py-3 font-bold w-12 text-center">No</th>
                             <th className="px-4 py-3 font-bold">NIS</th>
                             <th className="px-4 py-3 font-bold w-1/3">Nama Siswa</th>
-                            <th className="px-4 py-3 font-bold text-center w-32">Nilai (0-100)</th>
+                            <th className="px-4 py-3 font-bold text-center w-28">Nilai Angka (0-100)</th>
+                            {manualCriteria.map(criteria => (
+                              <th key={criteria} className="px-4 py-3 font-bold text-center w-24">{criteria} (A-D)</th>
+                            ))}
                             <th className="px-4 py-3 font-bold text-center">Catatan (Opsional)</th>
                           </tr>
                         </thead>
@@ -3827,6 +3942,20 @@ export default function TeacherPanel({
                                   className="w-full border border-slate-300 rounded-md px-2 py-1.5 text-center text-sm font-bold focus:ring-2 focus:ring-indigo-500"
                                 />
                               </td>
+                              {manualCriteria.map(criteria => (
+                                <td key={criteria} className="px-4 py-2.5">
+                                  <select 
+                                    value={g.criteriaGrades?.[criteria] || 'B'}
+                                    onChange={(e) => handleGradeCriteriaChange(g.studentId, criteria, e.target.value)}
+                                    className="w-full border border-slate-300 rounded-md px-2 py-1.5 text-center text-sm font-bold focus:ring-2 focus:ring-indigo-500"
+                                  >
+                                    <option value="A">A</option>
+                                    <option value="B">B</option>
+                                    <option value="C">C</option>
+                                    <option value="D">D</option>
+                                  </select>
+                                </td>
+                              ))}
                               <td className="px-4 py-2.5">
                                 <input
                                   type="text"
@@ -4770,11 +4899,11 @@ export default function TeacherPanel({
 
                       <div>
                         <label className="block text-xs font-semibold mb-2 text-slate-700">Format Konten *</label>
-                        <div className="grid grid-cols-2 gap-3">
-                          {(['Article', 'PDF', 'Video', 'Link'] as const).map(type => (
+                        <div className="flex flex-wrap gap-3">
+                          {(['Article', 'PDF', 'Video', 'Link', 'Word', 'Excel', 'PPT'] as const).map(type => (
                             <label 
                               key={type} 
-                              className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${
+                              className={`flex-1 min-w-[100px] flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${
                                 materiType === type 
                                   ? 'border-indigo-600 bg-indigo-50 text-indigo-700' 
                                   : 'border-slate-100 bg-white text-slate-500 hover:border-slate-300'
@@ -4825,7 +4954,7 @@ export default function TeacherPanel({
                                 'list', 'indent',
                                 'link', 'image', 'video'
                               ]}
-                              placeholder="Ketikkan materi pembelajaran di sini... (Dukung format teks panjang, rapi, dan mendetail layaknya artikel blog atau wiki)"
+                              placeholder="Ketikkan materi pembelajaran di sini... (Anda juga bisa menyematkan link file Word, Excel, PPT, atau PDF dari Google Drive melalui icon Link di toolbar)"
                               className="h-[400px] overflow-hidden"
                             />
                           </div>
@@ -4844,7 +4973,14 @@ export default function TeacherPanel({
                                 <input
                                   type="file"
                                   id="materiFile"
-                                  accept={materiType === 'PDF' ? 'application/pdf' : materiType === 'Video' ? 'video/*' : '*/*'}
+                                  accept={
+                                    materiType === 'PDF' ? 'application/pdf' : 
+                                    materiType === 'Video' ? 'video/*' : 
+                                    materiType === 'Word' ? '.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 
+                                    materiType === 'Excel' ? '.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 
+                                    materiType === 'PPT' ? '.ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation' : 
+                                    '*/*'
+                                  }
                                   onChange={handleSimulatedMateriUpload}
                                   className="hidden"
                                 />
@@ -6203,7 +6339,7 @@ export default function TeacherPanel({
                             <td className="border border-slate-300 p-2 text-center font-bold">{idx + 1}</td>
                             <td className="border border-slate-300 p-2 whitespace-nowrap">
                               <span className="font-extrabold text-indigo-900 block">{hari}</span>
-                              <span className="text-[11px] text-slate-600">{j.date}</span>
+                              <span className="text-[11px] text-slate-600">{formatDateToDDMMYYYY(j.date)}</span>
                             </td>
                             <td className="border border-slate-300 p-2 text-center font-bold text-purple-900">{jamStr}</td>
                             <td className="border border-slate-300 p-2">

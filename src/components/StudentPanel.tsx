@@ -638,6 +638,9 @@ export default function StudentPanel({
                       <span className={`px-2 py-0.5 rounded font-bold text-[9px] ${
                         mat.fileType === 'PDF' ? 'bg-red-50 text-red-700 border border-red-100' :
                         mat.fileType === 'Video' ? 'bg-blue-50 text-blue-700 border border-blue-100' :
+                        mat.fileType === 'Word' ? 'bg-blue-50 text-blue-800 border border-blue-200' :
+                        mat.fileType === 'Excel' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                        mat.fileType === 'PPT' ? 'bg-orange-50 text-orange-700 border border-orange-200' :
                         'bg-indigo-50 text-indigo-700 border border-indigo-100'
                       }`}>
                         {mat.fileType}

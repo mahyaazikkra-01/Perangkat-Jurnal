@@ -48,7 +48,7 @@ export interface Material {
   title: string;
   classId: string | string[];
   subjectId: string;
-  fileType: 'PDF' | 'Video' | 'Link' | 'Article';
+  fileType: 'PDF' | 'Video' | 'Link' | 'Article' | 'Word' | 'Excel' | 'PPT';
   fileUrl: string;
   content?: string; // Rich text content if fileType is Article
   status: 'Aktif' | 'Draft';
@@ -266,6 +266,7 @@ export interface ManualGrade {
   studentName: string;
   studentNis: string;
   score: number;
+  criteriaGrades?: Record<string, string>;
   notes?: string;
 }
 
@@ -277,6 +278,7 @@ export interface ManualAssessment {
   teacherId: string;
   date: string;
   type: string;
+  criteriaNames?: string[];
   grades: ManualGrade[];
   createdAt: string;
 }
