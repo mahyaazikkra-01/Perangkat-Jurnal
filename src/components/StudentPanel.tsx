@@ -188,24 +188,31 @@ export default function StudentPanel({
 
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault();
-      // Optional: recordCheat('Mencoba klik kanan');
+      recordCheat('Mencoba klik kanan (Context Menu)');
     };
 
     const handleCopyPaste = (e: ClipboardEvent) => {
       e.preventDefault();
-      // Optional: recordCheat('Mencoba menyalin/menempel teks');
+      recordCheat(`Mencoba ${e.type === 'copy' ? 'menyalin' : e.type === 'paste' ? 'menempel' : 'memotong'} (Clipboard)`);
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Mencegah Print Screen
       if (e.key === 'PrintScreen') {
         e.preventDefault();
-        recordCheat('Mencoba mengambil screenshot');
+        recordCheat('Mencoba Screenshot (PrintScreen)');
       }
-      // Mencegah Ctrl+C, Ctrl+V, Ctrl+X, dll
+      
+      // Mencegah Alt+Tab atau Windows Key (kalo bisa ditangkap)
+      if (e.key === 'Meta' || e.key === 'Alt') {
+        // Hanya catatan, OS event biasanya tidak bisa di block
+      }
+
+      // Mencegah Ctrl+C, Ctrl+V, dll
       if (e.ctrlKey || e.metaKey) {
-        if (['c', 'v', 'x', 'a', 'p'].includes(e.key.toLowerCase())) {
+        if (['c', 'v', 'x', 'a', 'p', 's', 'u'].includes(e.key.toLowerCase())) {
           e.preventDefault();
+          recordCheat(`Mencoba shortcut (Ctrl/Cmd+${e.key.toUpperCase()})`);
         }
       }
     };
@@ -783,6 +790,12 @@ export default function StudentPanel({
                     </div>
 
                     <div className="space-y-3">
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 flex gap-2 items-start">
+                        <ShieldAlert className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                        <p className="text-[10px] text-amber-800 font-medium leading-tight">
+                          <strong>Sistem Pengawasan Aktif:</strong> Segala bentuk aktivitas seperti keluar dari layar ujian, membuka aplikasi lain, atau melakukan copy-paste akan dicatat otomatis pada <strong>Log Pelanggaran Guru</strong>.
+                        </p>
+                      </div>
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-700 mb-1">Masukkan Token Kunci Ujian *</label>
                         <input

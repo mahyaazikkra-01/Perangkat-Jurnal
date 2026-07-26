@@ -16,7 +16,7 @@ import {
   BookOpen, Plus, Trash2, Calendar, FileText, ToggleLeft, ToggleRight, ListTodo, Key, Clock, HelpCircle, Save, Check,
   FileSpreadsheet, Upload, AlertCircle, Clipboard, Download, Info, Printer, Filter, BarChart3, X, Settings, Building, UserCheck, ShieldAlert,
   Edit3, Camera, User, Image, MapPin, Bell, Megaphone, AlertTriangle, Sparkles, Send, Database, CheckCircle, FileCode, Users,
-  Folder, FolderPlus, Scissors, ClipboardPaste, CornerUpLeft, ArrowLeft
+  Folder, FolderPlus, Scissors, ClipboardPaste, Copy, CornerUpLeft, ArrowLeft
 } from 'lucide-react';
 
 export interface SchoolIdentityConfig {
@@ -1496,6 +1496,7 @@ export default function TeacherPanel({
 
   // --- 3. EXAMS STATE ---
   const [showAddExamModal, setShowAddExamModal] = useState(false);
+  const [editingExamId, setEditingExamId] = useState<string | null>(null);
   const [isQuestionBankMode, setIsQuestionBankMode] = useState(false);
   const [examTitle, setExamTitle] = useState('');
   const [examClass, setExamClass] = useState('');
@@ -1635,6 +1636,7 @@ export default function TeacherPanel({
   const [itemToDelete, setItemToDelete] = useState<{ id: string, type: 'Materi' | 'Ujian' | 'Bank Soal', name: string } | null>(null);
   
   // Single question form
+  const [editingQuestionIndex, setEditingQuestionIndex] = useState<number | null>(null);
   const [qText, setQText] = useState('');
   // Pilihan Ganda Standard inputs
   const [pgOptions, setPgOptions] = useState<string[]>(['', '', '', '']);
@@ -1755,7 +1757,19 @@ export default function TeacherPanel({
       };
     }
 
-    setExamQuestions(prev => [...prev, questionNode]);
+    if (editingQuestionIndex !== null) {
+      setExamQuestions(prev => {
+        const newQuestions = [...prev];
+        questionNode.id = newQuestions[editingQuestionIndex].id; // Keep original ID
+        newQuestions[editingQuestionIndex] = questionNode;
+        return newQuestions;
+      });
+      setEditingQuestionIndex(null);
+      toast('Soal berhasil diperbarui!');
+    } else {
+      setExamQuestions(prev => [...prev, questionNode]);
+      toast('Soal berhasil ditambahkan!');
+    }
     
     // Clear question fields
     setQText('');
@@ -1767,6 +1781,51 @@ export default function TeacherPanel({
     setQMediaUrl('');
     setQScore(10);
     setQFontPreset('Sans');
+  };
+
+  const handleEditQuestion = (idx: number) => {
+    const q = examQuestions[idx];
+    setEditingQuestionIndex(idx);
+    setCurrentQType(q.type);
+    setQText(q.questionText);
+    setQScore(q.score ?? 10);
+    setQFontPreset(q.fontPreset ?? 'Sans');
+    setQMediaType(q.mediaType || 'None');
+    setQMediaUrl(q.mediaUrl || '');
+
+    if (q.type === 'PilihanGanda' && q.options) {
+      const paddedOptions = [...q.options];
+      while (paddedOptions.length < 4) paddedOptions.push('');
+      setPgOptions(paddedOptions.slice(0, 4));
+      
+      let correctIdx = 0;
+      if (q.correctAnswer === 'B') correctIdx = 1;
+      else if (q.correctAnswer === 'C') correctIdx = 2;
+      else if (q.correctAnswer === 'D') correctIdx = 3;
+      setPgCorrect(correctIdx.toString());
+    } else if (q.type === 'PilihanGandaKompleks' && q.options) {
+      const paddedOptions = [...q.options];
+      while (paddedOptions.length < 4) paddedOptions.push('');
+      setPgkOptions(paddedOptions.slice(0, 4));
+      
+      const corrects = paddedOptions.map(opt => Array.isArray(q.correctAnswers) ? q.correctAnswers.includes(opt) : false);
+      setPgkCorrects(corrects);
+    } else if (q.type === 'PilihanAsosiatif' && q.statements) {
+      const paddedStatements = [...q.statements];
+      while (paddedStatements.length < 4) paddedStatements.push('');
+      setAsoStatements(paddedStatements.slice(0, 4));
+      
+      const corrects = paddedStatements.map(opt => Array.isArray(q.correctCombination) ? q.correctCombination.includes(opt) : false);
+      setAsoCorrects(corrects);
+    } else if (q.type === 'SebabAkibat') {
+      setSaStatement(q.statement || '');
+      setSaReason(q.reason || '');
+      setSaStatementTrue(q.correctStatementTrue || false);
+      setSaReasonTrue(q.correctReasonTrue || false);
+      setSaCausality(q.correctCausality || false);
+    } else if (q.type === 'Uraian') {
+      setUraianAnswer(typeof q.correctAnswer === 'string' ? q.correctAnswer : '');
+    }
   };
 
   const handleRemoveQuestion = (idx: number) => {
@@ -2095,17 +2154,35 @@ export default function TeacherPanel({
       return;
     }
 
-    onSaveExam({
-      title: examTitle,
-      classId: examClass,
-      subjectId: examSubject,
-      token: examToken.toUpperCase(),
-      durationMinutes: Number(examDuration),
-      questions: examQuestions,
-      teacherId: currentTeacher.id
-    });
+    if (editingExamId && onUpdateExam) {
+      const existingExam = teacherExams.find(ex => ex.id === editingExamId);
+      if (existingExam) {
+        onUpdateExam({
+          ...existingExam,
+          title: examTitle,
+          classId: examClass,
+          subjectId: examSubject,
+          token: examToken.toUpperCase(),
+          durationMinutes: Number(examDuration),
+          questions: examQuestions
+        });
+        toast('Paket ujian berhasil diperbarui!');
+      }
+    } else {
+      onSaveExam({
+        title: examTitle,
+        classId: examClass,
+        subjectId: examSubject,
+        token: examToken.toUpperCase(),
+        durationMinutes: Number(examDuration),
+        questions: examQuestions,
+        teacherId: currentTeacher.id
+      });
+      toast('Paket ujian berhasil disimpan!');
+    }
 
     // Reset Form
+    setEditingExamId(null);
     setExamTitle('');
     setExamToken('');
     setExamQuestions([]);
@@ -3687,6 +3764,63 @@ export default function TeacherPanel({
                         >
                           <Sparkles className="w-3.5 h-3.5" /> Reset
                         </button>
+                      )}
+                      {onUpdateExam && (
+                        <>
+                          <button
+                            onClick={() => {
+                              setEditingExamId(exam.id);
+                              setExamTitle(exam.title);
+                              setExamClass(exam.classId);
+                              setExamSubject(exam.subjectId);
+                              setExamToken(exam.token);
+                              setExamDuration(exam.durationMinutes);
+                              setExamQuestions(exam.questions);
+                              setTargetQuestionCount(Math.max(10, exam.questions.length));
+                              setIsQuestionBankMode(false);
+                              setShowAddExamModal(true);
+                            }}
+                            className="text-amber-600 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 p-2 rounded-lg transition flex-shrink-0 flex items-center gap-1.5 text-xs font-bold"
+                            title="Edit Ujian"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" /> Edit
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingExamId(null);
+                              setExamTitle(exam.title + ' (Salinan)');
+                              setExamClass('');
+                              setExamSubject(exam.subjectId);
+                              setExamToken(Math.random().toString(36).substring(2, 8).toUpperCase());
+                              setExamDuration(exam.durationMinutes);
+                              setExamQuestions(exam.questions);
+                              setTargetQuestionCount(Math.max(10, exam.questions.length));
+                              setIsQuestionBankMode(false);
+                              setShowAddExamModal(true);
+                            }}
+                            className="text-emerald-600 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 p-2 rounded-lg transition flex-shrink-0 flex items-center gap-1.5 text-xs font-bold"
+                            title="Duplikat ke Kelas Lain"
+                          >
+                            <Copy className="w-3.5 h-3.5" /> Duplikat
+                          </button>
+                          {onSaveQuestionBank && (
+                            <button
+                              onClick={() => {
+                                setQbTitle(exam.title + ' (Arsip Bank Soal)');
+                                setQbSubject(exam.subjectId);
+                                setExamQuestions(exam.questions);
+                                setTargetQuestionCount(Math.max(10, exam.questions.length));
+                                setEditingQbId(null);
+                                setIsQuestionBankMode(true);
+                                setShowAddQuestionBankModal(true);
+                              }}
+                              className="text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 p-2 rounded-lg transition flex-shrink-0 flex items-center gap-1.5 text-xs font-bold"
+                              title="Simpan ke Bank Soal"
+                            >
+                              <Database className="w-3.5 h-3.5" /> Arsipkan
+                            </button>
+                          )}
+                        </>
                       )}
                       {onDeleteExam && (
                         <button
@@ -5332,7 +5466,9 @@ export default function TeacherPanel({
                   </div>
                   <div>
                     <h3 className="font-black text-slate-900 text-2xl tracking-tight flex items-center gap-2">
-                      {isQuestionBankMode ? (editingQbId ? 'Edit Bank Soal' : 'Buat Bank Soal Baru') : 'Pembuatan Paket Ujian'}
+                      {isQuestionBankMode 
+                        ? (editingQbId ? 'Edit Bank Soal' : 'Buat Bank Soal Baru') 
+                        : (editingExamId ? 'Edit Paket Ujian' : 'Pembuatan Paket Ujian')}
                       {!isQuestionBankMode && <span className="bg-indigo-100 text-indigo-800 text-[10px] uppercase px-2 py-0.5 rounded-full font-bold border border-indigo-200 shadow-xs">Studio CBT</span>}
                     </h3>
                     <p className="text-sm text-slate-500 font-medium mt-1">
@@ -6129,13 +6265,37 @@ export default function TeacherPanel({
                   </div>
                 )}
 
-                <button
-                  type="button"
-                  onClick={handleAddQuestionToExam}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg cursor-pointer transition shadow-xs"
-                >
-                  Tambahkan Soal ini ke {isQuestionBankMode ? 'Bank Soal' : 'Paket Ujian'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleAddQuestionToExam}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg cursor-pointer transition shadow-xs"
+                  >
+                    {editingQuestionIndex !== null 
+                      ? `Perbarui Soal #${editingQuestionIndex + 1}` 
+                      : `Tambahkan Soal ini ke ${isQuestionBankMode ? 'Bank Soal' : 'Paket Ujian'}`}
+                  </button>
+                  {editingQuestionIndex !== null && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingQuestionIndex(null);
+                        setQText('');
+                        setPgOptions(['', '', '', '']);
+                        setPgkOptions(['', '', '', '']);
+                        setPgkCorrects([false, false, false, false]);
+                        setAsoCorrects([false, false, false, false]);
+                        setQMediaType('None');
+                        setQMediaUrl('');
+                        setQScore(10);
+                        setQFontPreset('Sans');
+                      }}
+                      className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold px-4 py-2 rounded-lg cursor-pointer transition shadow-xs"
+                    >
+                      Batal Edit
+                    </button>
+                  )}
+                </div>
               </div>
               
             </div>
@@ -6205,14 +6365,24 @@ export default function TeacherPanel({
                               {renderFormattedText(q.questionText, q.fontPreset)}
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveQuestion(idx)}
-                            className="text-red-400 hover:text-red-600 p-1.5 hover:bg-red-50 rounded-lg transition"
-                            title="Hapus Soal"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex flex-col gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleEditQuestion(idx)}
+                              className="text-amber-500 hover:text-amber-700 p-1.5 hover:bg-amber-50 rounded-lg transition"
+                              title="Edit Soal"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveQuestion(idx)}
+                              className="text-red-400 hover:text-red-600 p-1.5 hover:bg-red-50 rounded-lg transition"
+                              title="Hapus Soal"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       ))
                     )}
