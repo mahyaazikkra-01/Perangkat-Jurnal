@@ -23,7 +23,7 @@ const DEFAULT_SCHOOL_CONFIG: SchoolConfig = {
   landingTitle: 'Sistem Manajemen Mengajar & E-Learning SMPN 1 BEJI',
   landingDescription: 'Aplikasi Komprehensif untuk membantu Guru dan Siswa dalam Pembelajaran dan Materi serta Ujian/Tugas & Evaluasi.',
   footerText: '© 2026 E-Learning/E-Jurnal SMPN 1 BEJI, Kab. Pasuruan.',
-  adminPassword: 'admin123'
+  adminPassword: '@dminSpeniji01'
 };
 
 // === INITIAL SEED DATA ===
@@ -775,14 +775,14 @@ export default function App() {
     const pass = passwordInput.trim();
 
     // 1. Admin Bypass (Local check, no Firebase Auth required)
-    const expectedAdminPass = schoolConfig?.adminPassword || 'admin123';
-    if (identifier === 'admin' && (pass === expectedAdminPass || pass === 'admin123')) {
+    const expectedAdminPass = schoolConfig?.adminPassword || '@dminSpeniji01';
+    if (identifier === 'admin' && (pass === expectedAdminPass || pass === '@dminSpeniji01')) {
       setCurrentRole('Admin');
       setActiveUser({ name: 'Administrator Utama', username: 'admin' });
       return;
     }
 
-    if (identifier === 'guru_bk' && (pass === 'bk123')) {
+    if (identifier === 'guru_bk' && (pass === '@bk123')) {
       setCurrentRole('Counselor');
       setActiveUser({ name: 'Guru BK', username: 'guru_bk' });
       return;
@@ -837,7 +837,7 @@ export default function App() {
       // Fallback check local dummy data for easier testing during setup
       const matchedTeacher = teachers.find(t => t.nip === identifier);
       const expectedTeacherPass = matchedTeacher?.password || 'guru123';
-      if (matchedTeacher && (pass === expectedTeacherPass || pass === matchedTeacher?.email || pass === matchedTeacher?.nip || pass === 'bk123' || pass === 'guru123')) {
+      if (matchedTeacher && (pass === expectedTeacherPass || pass === matchedTeacher?.email || pass === matchedTeacher?.nip || pass === '@bk123' || pass === 'guru123')) {
         const lowerSubject = (matchedTeacher.subject || '').toLowerCase();
         if (lowerSubject.includes('bimbingan') || lowerSubject.includes('konseling') || lowerSubject === 'bk') {
           setCurrentRole('Counselor');
@@ -1109,7 +1109,6 @@ export default function App() {
                         </button>
                       </form>
                       <p className="text-center text-[10px] text-slate-400 mt-4">
-                        *Gunakan <strong className="text-slate-500">admin</strong> (Pass: admin123) atau <strong className="text-slate-500">guru_bk</strong> (Pass: bk123) untuk akses khusus.
                       </p>
                     </>
                   ) : (
@@ -1221,7 +1220,6 @@ export default function App() {
                         </button>
                       </form>
                       <p className="text-center text-[10px] text-slate-400 mt-4">
-                        *Gunakan <strong className="text-slate-500">admin</strong> (Pass: admin123) atau <strong className="text-slate-500">guru_bk</strong> (Pass: bk123) untuk akses khusus.
                       </p>
 
                       <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[11px] text-amber-900 font-medium">
