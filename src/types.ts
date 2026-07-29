@@ -183,6 +183,34 @@ export interface CheatLog {
   violationType: string;
 }
 
+export interface CounselingReferral {
+  id: string;
+  teacherId: string;
+  studentNis: string;
+  studentName: string;
+  className: string;
+  issueCategory: string;
+  issueDetails: string;
+  status: 'Menunggu' | 'Diproses' | 'Selesai';
+  priority: 'Rendah' | 'Sedang' | 'Tinggi';
+  createdAt: string;
+}
+
+export interface CounselingSession {
+  id: string;
+  referralId?: string;
+  studentNis: string;
+  studentName: string;
+  className: string;
+  date: string;
+  counselorName: string;
+  notes: string;
+  actionTaken: string;
+  isABK: boolean;
+  abkNotes?: string;
+  status: 'Selesai' | 'Butuh Tindak Lanjut';
+}
+
 export interface ExamSubmission {
   id: string;
   examId: string;
@@ -283,3 +311,75 @@ export interface ManualAssessment {
   createdAt: string;
 }
 
+
+export interface DailyCheckIn {
+  id: string;
+  studentNis: string;
+  date: string;
+  mood: 'Senang' | 'Biasa' | 'Sedih' | 'Marah' | 'Takut' | 'Lelah';
+  note?: string;
+  createdAt: string;
+}
+
+export interface NeedsAssessment {
+  id: string;
+  studentNis: string;
+  q1: number;
+  q2: number;
+  q3: number;
+  q4: number;
+  q5: number;
+  q6: number;
+  q7: number;
+  q8: number;
+  q9: number;
+  q10: number;
+  q11: number;
+  q12: number;
+  q13: number;
+  q14: number;
+  q15: number;
+  q16: number;
+  essayEmotion: string;
+  essaySocial: string;
+  essayAcademic: string;
+  essayCareer: string;
+  createdAt: string;
+}
+
+export interface Sociometry {
+  id: string;
+  studentNis: string;
+  classId: string;
+  friendsWith: string[];
+  createdAt: string;
+}
+
+export interface HomeVisit {
+  id: string;
+  studentNis: string;
+  studentName: string;
+  className: string;
+  date: string;
+  counselorName: string;
+  purpose: string;
+  parentName: string;
+  visitResult: string;
+  followUp: string;
+  status: 'Direncanakan' | 'Selesai';
+  createdAt: string;
+}
+
+export interface CareerPlan {
+  id: string;
+  studentNis: string;
+  studentName: string;
+  className: string;
+  interests: string[];
+  strengths: string[];
+  targetUniversity?: string;
+  targetMajor?: string;
+  targetCareer: string;
+  counselorNotes?: string;
+  updatedAt: string;
+}

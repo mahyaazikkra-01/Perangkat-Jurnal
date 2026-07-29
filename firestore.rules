@@ -89,6 +89,36 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isSignedIn();
     }
+    match /counselingReferrals/{refId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    match /counselingSessions/{sessionId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    match /dailyCheckIns/{checkInId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    match /needsAssessments/{assessmentId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    match /sociometries/{sociometryId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /homeVisits/{visitId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /careerPlans/{planId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
     match /config/{configId} {
       allow read: if true; // Config (logo sekolah dll) perlu dibaca publik saat login
       allow write: if isSignedIn();

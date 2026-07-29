@@ -9,7 +9,7 @@ import { storage, db } from '../firebase';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { addDocument } from '../firebaseSync';
 import { 
-  Teacher, Student, ClassItem, SubjectItem, Material, JournalEntry, Exam, ExamQuestion, QuestionType, TeacherScheduleNote, TeacherAnnouncement, QuestionBank, ExamSubmission, ShareRequest, CheatLog, TeachingModule, ManualAssessment, ManualGrade
+  Teacher, Student, ClassItem, SubjectItem, Material, JournalEntry, Exam, ExamQuestion, QuestionType, TeacherScheduleNote, TeacherAnnouncement, QuestionBank, ExamSubmission, ShareRequest, CheatLog, TeachingModule, ManualAssessment, ManualGrade, CounselingReferral
 } from '../types';
 
 import { 
@@ -65,6 +65,7 @@ interface TeacherPanelProps {
   shareRequests?: ShareRequest[];
   teachers?: Teacher[];
   onShareToTeacher?: (request: Omit<ShareRequest, 'id' | 'createdAt'>) => void;
+  onAddReferral?: (ref: Omit<CounselingReferral, 'id' | 'createdAt'>) => void;
   onRespondShare?: (requestId: string, response: 'Accepted' | 'Rejected') => void;
   onSaveAnnouncement?: (ann: Omit<TeacherAnnouncement, 'id' | 'createdAt'>) => void;
   onDeleteAnnouncement?: (id: string) => void;
@@ -164,6 +165,7 @@ export default function TeacherPanel({
   onRespondShare,
   onSaveAnnouncement,
   onDeleteAnnouncement,
+  onAddReferral,
   onToggleAnnouncement,
   scheduleNotes,
   onSaveSchedule,
@@ -191,7 +193,7 @@ export default function TeacherPanel({
     return a.name.localeCompare(b.name);
   });
 
-  const [activeTab, setActiveTab] = useState<'journal' | 'materials' | 'teaching_modules' | 'exams' | 'bank_soal' | 'daftar_nilai' | 'profile' | 'announcements' | 'cheatlogs'>('journal');
+  const [activeTab, setActiveTab] = useState<'journal' | 'materials' | 'teaching_modules' | 'exams' | 'bank_soal' | 'daftar_nilai' | 'profile' | 'announcements' | 'cheatlogs' | 'konseling'>('journal');
 
   // --- 0. IDENTITAS SEKOLAH & KEPALA SEKOLAH STATE ---
   const [schoolIdentity, setSchoolIdentity] = useState<SchoolIdentityConfig>(() => {
@@ -864,7 +866,7 @@ export default function TeacherPanel({
 
 
 
-  const exportManualGradesExcel = (assessmentId: string) => {
+  const exportManualGradeExcel = (assessmentId: string) => {
     const assessment = manualAssessments?.find(m => m.id === assessmentId);
     if (!assessment) return;
     const cls = getClassName(assessment.classId);
@@ -893,7 +895,7 @@ export default function TeacherPanel({
     XLSX.writeFile(workbook, `Penilaian_${assessment.title.replace(/\s+/g, '_')}_${cls}.xlsx`);
   };
 
-  const printManualGradesDocument = (assessmentId: string) => {
+  const printManualGradeDocument = (assessmentId: string) => {
     const assessment = manualAssessments?.find(m => m.id === assessmentId);
     if (!assessment) return;
     const cls = getClassName(assessment.classId);
@@ -2252,6 +2254,35 @@ export default function TeacherPanel({
     setShareDuration(60);
   };
 
+  const [refClassId, setRefClassId] = useState('');
+  const [refStudentNis, setRefStudentNis] = useState('');
+  const [refCategory, setRefCategory] = useState('');
+  const [refDetails, setRefDetails] = useState('');
+  const [refPriority, setRefPriority] = useState<'Rendah' | 'Sedang' | 'Tinggi'>('Sedang');
+
+  const handleCreateReferral = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!refStudentNis || !refDetails || !onAddReferral) return;
+    const student = students.find(s => s.nis === refStudentNis);
+    if (!student) return;
+    onAddReferral({
+      teacherId: currentTeacher.id,
+      studentNis: student.nis,
+      studentName: student.name,
+      className: classes.find(c => c.id === student.classId)?.name || 'N/A',
+      issueCategory: refCategory,
+      issueDetails: refDetails,
+      status: 'Menunggu',
+      priority: refPriority
+    });
+    setRefStudentNis('');
+    setRefCategory('');
+    setRefClassId('');
+    setRefDetails('');
+    setRefPriority('Sedang');
+    toast('Rujukan berhasil dikirim ke Guru BK!', { icon: '🤝' });
+  };
+
   const handleSaveQuestionBankSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!qbTitle || !qbSubject) {
@@ -2412,6 +2443,16 @@ export default function TeacherPanel({
             }`}
           >
             👤 Profil & Jadwal Mengajar
+          </button>
+          <button
+            onClick={() => setActiveTab('konseling')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'konseling'
+                ? 'bg-teal-50 text-teal-700 shadow-xs'
+                : 'bg-teal-800/40 text-teal-100 hover:bg-teal-800/60'
+            }`}
+          >
+            🤝 Konseling BK
           </button>
           <button
             onClick={() => setActiveTab('announcements')}
@@ -3890,13 +3931,13 @@ export default function TeacherPanel({
             {(selectedExamForGrades || selectedManualAssessment) && (
               <div className="flex gap-2">
                 <button
-                  onClick={() => selectedExamForGrades ? exportGradesExcel(selectedExamForGrades) : exportManualGradesExcel(selectedManualAssessment)}
+                  onClick={() => selectedExamForGrades ? exportGradesExcel(selectedExamForGrades) : exportManualGradeExcel(selectedManualAssessment)}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm px-4 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <FileSpreadsheet className="w-4 h-4" /> Unduh Excel
                 </button>
                 <button
-                  onClick={() => selectedExamForGrades ? printGradesDocument(selectedExamForGrades) : printManualGradesDocument(selectedManualAssessment)}
+                  onClick={() => selectedExamForGrades ? printGradesDocument(selectedExamForGrades) : printManualGradeDocument(selectedManualAssessment)}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm px-4 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <Printer className="w-4 h-4" /> Cetak PDF
@@ -4284,7 +4325,7 @@ export default function TeacherPanel({
                                     <button onClick={() => handleOpenManualForm(assessment)} className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 cursor-pointer" title="Edit">
                                       <Edit3 className="w-3.5 h-3.5" />
                                     </button>
-                                    <button onClick={() => { if(window.confirm('Hapus penilaian?')) onDeleteManualAssessment?.(assessment.id); }} className="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 cursor-pointer" title="Hapus">
+                                    <button onClick={() => { onDeleteManualAssessment?.(assessment.id); }} className="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 cursor-pointer" title="Hapus">
                                       <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                   </div>
@@ -4869,6 +4910,114 @@ export default function TeacherPanel({
       )}
 
       {/* 6. TAB INBOX (KOTAK MASUK BERBAGI) */}
+      {activeTab === 'konseling' && (
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 sm:p-8 space-y-8 animate-fade-in">
+          <div>
+            <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+              <span className="text-teal-600">🤝</span> Rujukan Konseling (Guru BK)
+            </h2>
+            <p className="text-sm text-slate-500 mt-1">
+              Laporkan siswa yang membutuhkan pendampingan khusus atau bimbingan konseling kepada Guru BK.
+            </p>
+          </div>
+
+          <form onSubmit={handleCreateReferral} className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-5">
+            <h3 className="font-bold text-slate-800 border-b border-slate-200 pb-2">Buat Rujukan Baru</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div>
+                <label className="block text-xs font-semibold mb-1.5 text-slate-700">Pilih Kelas</label>
+                <select
+                  value={refClassId}
+                  onChange={(e) => {
+                    setRefClassId(e.target.value);
+                    setRefStudentNis('');
+                  }}
+                  className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-sm"
+                >
+                  <option value="">-- Semua Kelas --</option>
+                  {classes.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-1.5 text-slate-700">Pilih Siswa * (Ketik untuk mencari)</label>
+                <input
+                  type="text"
+                  list="ref-students-list"
+                  value={refStudentNis}
+                  onChange={(e) => setRefStudentNis(e.target.value)}
+                  placeholder="Pilih atau ketik NIS siswa..."
+                  required
+                  autoComplete="off"
+                  className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-sm"
+                />
+                <datalist id="ref-students-list">
+                  {students
+                    .filter(s => refClassId ? s.classId === refClassId : true)
+                    .map(s => (
+                    <option key={s.nis} value={s.nis}>{s.name} ({classes.find(c => c.id === s.classId)?.name || 'N/A'})</option>
+                  ))}
+                </datalist>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-1.5 text-slate-700">Kategori Kendala *</label>
+                <input
+                  type="text"
+                  value={refCategory}
+                  onChange={(e) => setRefCategory(e.target.value)}
+                  placeholder="Ketik Kategori Kendala..."
+                  required
+                  className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-sm"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold mb-1.5 text-slate-700">Detail Kendala & Kronologi *</label>
+              <textarea
+                value={refDetails}
+                onChange={(e) => setRefDetails(e.target.value)}
+                required
+                rows={4}
+                placeholder="Deskripsikan perilaku atau kendala yang dialami siswa saat proses pembelajaran..."
+                className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold mb-1.5 text-slate-700">Tingkat Prioritas</label>
+              <div className="flex gap-3">
+                {['Rendah', 'Sedang', 'Tinggi'].map((p) => (
+                  <label key={p} className={`flex-1 flex items-center justify-center gap-2 py-2 border rounded-xl cursor-pointer transition ${refPriority === p ? (p === 'Tinggi' ? 'bg-rose-50 border-rose-500 text-rose-700 font-bold' : p === 'Sedang' ? 'bg-amber-50 border-amber-500 text-amber-700 font-bold' : 'bg-blue-50 border-blue-500 text-blue-700 font-bold') : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                    <input
+                      type="radio"
+                      name="priority"
+                      value={p}
+                      checked={refPriority === p}
+                      onChange={(e) => setRefPriority(e.target.value as any)}
+                      className="sr-only"
+                    />
+                    {p}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="submit"
+                className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm py-3 px-6 rounded-xl transition shadow-md"
+              >
+                Kirim Rujukan ke Guru BK
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
       {activeTab === 'inbox' && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-6 space-y-6 animate-fade-in">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">

@@ -2,13 +2,25 @@ import toast from 'react-hot-toast';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Student, Material, Exam, ExamQuestion, ExamSubmission, CheatLog, Teacher, SubjectItem, TeacherAnnouncement
-} from '../types';
+, DailyCheckIn, NeedsAssessment, Sociometry, ClassItem, CareerPlan } from '../types';
 import { 
   BookOpen, FileText, Key, Clock, AlertTriangle, CheckCircle, ShieldAlert, Sparkles, Send, User, GraduationCap,
   Bell, Megaphone, CheckCircle2, Info, X
-} from 'lucide-react';
+, Heart, MessageSquare, Users, Briefcase} from 'lucide-react';
 
 interface StudentPanelProps {
+  dailyCheckIns?: DailyCheckIn[];
+  onAddDailyCheckIn?: (checkIn: Omit<DailyCheckIn, 'id' | 'createdAt'>) => void;
+  onAddNeedsAssessment?: (assessment: Omit<NeedsAssessment, 'id' | 'createdAt'>) => void;
+  sociometries?: Sociometry[];
+  onAddSociometry?: (sociometry: Omit<Sociometry, 'id' | 'createdAt'>) => void;
+  onUpdateSociometry?: (id: string, updates: Partial<Sociometry>) => void;
+  onDeleteSociometry?: (id: string) => void;
+  careerPlans?: CareerPlan[];
+  onAddCareerPlan?: (plan: Omit<CareerPlan, 'id' | 'updatedAt'>) => void;
+  onUpdateCareerPlan?: (id: string, updates: Partial<CareerPlan>) => void;
+  classes?: ClassItem[];
+  students?: Student[];
   currentStudent: Student;
   materials: Material[];
   exams: Exam[];
@@ -33,6 +45,7 @@ export function renderFormattedText(text: string, fontPreset?: 'Sans' | 'Serif' 
   const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|__[^_]+__|`[^`]+`|\[[^\]]+\]\([^)]+\))/g);
 
   return (
+    <>
     <div className={`${fontClass} leading-relaxed whitespace-pre-wrap`}>
       {parts.map((part, index) => {
         if (part.startsWith('**') && part.endsWith('**')) {
@@ -67,10 +80,26 @@ export function renderFormattedText(text: string, fontPreset?: 'Sans' | 'Serif' 
         return part;
       })}
     </div>
+
+
+
+    </>
   );
 }
 
 export default function StudentPanel({
+  dailyCheckIns = [],
+  onAddDailyCheckIn,
+  onAddNeedsAssessment,
+  sociometries = [],
+  onAddSociometry,
+  onUpdateSociometry,
+  onDeleteSociometry,
+  careerPlans = [],
+  onAddCareerPlan,
+  onUpdateCareerPlan,
+  classes = [],
+  students = [],
   currentStudent,
   materials,
   exams,
@@ -81,7 +110,72 @@ export default function StudentPanel({
   onAddCheatLog,
   onSubmitExam
 }: StudentPanelProps) {
-  const [activeTab, setActiveTab] = useState<'beranda' | 'materials' | 'exams' | 'scores'>('beranda');
+  const [activeTab, setActiveTab] = useState<'beranda' | 'materials' | 'exams' | 'scores' | 'bk'>('beranda');
+  const [dailyMood, setDailyMood] = useState<'Senang' | 'Biasa' | 'Sedih' | 'Marah' | 'Takut' | 'Lelah'>('Senang');
+  const [dailyNote, setDailyNote] = useState('');
+  const [hasCheckedIn, setHasCheckedIn] = useState(false);
+
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const alreadyCheckedIn = dailyCheckIns.some(c => c.studentNis === currentStudent.nis && c.date.startsWith(today));
+    setHasCheckedIn(alreadyCheckedIn);
+  }, [dailyCheckIns, currentStudent.nis]);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  
+  
+  const handleCheckIn = () => {
+    if (dailyNote.trim().length < 10) {
+      toast.error('Mohon ceritakan sedikit alasanmu (minimal 10 karakter) agar Guru BK bisa memahamimu dengan baik.');
+      return;
+    }
+    
+    setIsSubmitting(true);
+      if (onAddDailyCheckIn) {
+        onAddDailyCheckIn({ studentNis: currentStudent.nis, date: new Date().toISOString(), mood: dailyMood, note: dailyNote.trim() });
+        setHasCheckedIn(true);
+        toast.success('Jurnal berhasil dikirim!');
+      }
+    setIsSubmitting(false);
+  };
+
+
+  const [showAKPDForm, setShowAKPDForm] = useState(false);
+  const [akpdAnswers, setAkpdAnswers] = useState({
+    q1: 0, q2: 0, q3: 0, q4: 0,
+    q5: 0, q6: 0, q7: 0, q8: 0,
+    q9: 0, q10: 0, q11: 0, q12: 0,
+    q13: 0, q14: 0, q15: 0, q16: 0,
+    essayEmotion: '',
+    essaySocial: '',
+    essayAcademic: '',
+    essayCareer: ''
+  });
+  const [showSosiometriForm, setShowSosiometriForm] = useState(false);
+  const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
+
+  const mySociometry = sociometries.find(s => s.studentNis === currentStudent.nis);
+  useEffect(() => {
+    if (showSosiometriForm) {
+      setSelectedFriends(mySociometry?.friendsWith || []);
+    }
+  }, [showSosiometriForm, mySociometry]);
+  const [showKarirForm, setShowKarirForm] = useState(false);
+  const myCareerPlan = careerPlans.find(cp => cp.studentNis === currentStudent.nis);
+  const [karirInterests, setKarirInterests] = useState<string>('');
+  const [karirStrengths, setKarirStrengths] = useState<string>('');
+  const [karirTarget, setKarirTarget] = useState<string>('');
+
+  useEffect(() => {
+    if (showKarirForm) {
+      setKarirInterests(myCareerPlan?.interests.join(', ') || '');
+      setKarirStrengths(myCareerPlan?.strengths.join(', ') || '');
+      setKarirTarget(myCareerPlan?.targetCareer || '');
+    }
+  }, [showKarirForm, myCareerPlan]);
+
+
 
   // Materials Viewer State
   const [activeMaterial, setActiveMaterial] = useState<Material | null>(null);
@@ -420,7 +514,8 @@ export default function StudentPanel({
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto animate-fade-in" id="student-panel-container">
+    <>
+    <div className="space-y-6-6 max-w-7xl mx-auto animate-fade-in" id="student-panel-container">
       {/* Student Welcome Header */}
       {!examStarted && (
         <div className="bg-white border border-slate-100 shadow-xs rounded-2xl p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -450,6 +545,16 @@ export default function StudentPanel({
                   {unreadCount}
                 </span>
               )}
+            </button>
+            <button
+              onClick={() => setActiveTab('bk')}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition whitespace-nowrap ${
+                activeTab === 'bk' 
+                  ? 'bg-teal-600 text-white shadow-md' 
+                  : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
+              }`}
+            >
+              <Heart className="w-4 h-4" /> Bimbingan & Konseling
             </button>
             <button
               onClick={() => setActiveTab('materials')}
@@ -486,6 +591,415 @@ export default function StudentPanel({
       )}
 
       {/* BERANDA & NOTIFIKASI GURU SECTION */}
+      
+      {activeTab === 'bk' && !examStarted && (
+        <div className="space-y-6 animate-fade-in">
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
+            <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2"><Heart className="w-6 h-6 text-rose-500" /> Jurnal Emosional Harian</h2>
+            {hasCheckedIn ? (
+              <div className="bg-teal-50 text-teal-800 p-6 rounded-2xl border border-teal-100 text-center">
+                <CheckCircle className="w-12 h-12 text-teal-500 mx-auto mb-3" />
+                <h3 className="font-bold text-lg mb-1">Terima Kasih!</h3>
+                <p className="text-sm">Kamu sudah mengisi jurnal emosional hari ini. Semoga harimu menyenangkan!</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-sm text-slate-600 font-medium">Bagaimana perasaanmu hari ini? Ceritakan sedikit jika kamu mau.</p>
+                <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                  {['Senang', 'Biasa', 'Sedih', 'Marah', 'Takut', 'Lelah'].map(mood => (
+                    <button
+                      key={mood}
+                      onClick={() => setDailyMood(mood as any)}
+                      className={`py-3 px-2 rounded-xl border-2 transition font-bold text-sm ${dailyMood === mood ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-slate-200 bg-white text-slate-600 hover:border-teal-300'}`}
+                    >
+                      {mood === 'Senang' ? '😊' : mood === 'Biasa' ? '😐' : mood === 'Sedih' ? '😢' : mood === 'Marah' ? '😠' : mood === 'Takut' ? '😨' : '😫'}<br/>
+                      <span className="mt-1 block">{mood}</span>
+                    </button>
+                  ))}
+                </div>
+                <div>
+                  <textarea
+                    value={dailyNote}
+                    onChange={e => setDailyNote(e.target.value)}
+                    placeholder="Kenapa kamu merasa demikian hari ini? Ceritakan sedikit alasanmu (wajib, min 10 karakter)..."
+                    rows={3}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+                  />
+                </div>
+                <button
+                  onClick={handleCheckIn}
+                  disabled={isSubmitting || dailyNote.trim().length < 10}
+                  className="px-6 py-3 bg-teal-600 text-white font-bold rounded-xl hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-md w-full"
+                >
+                  Kirim Jurnal Harian
+                </button>
+              </div>
+            )}
+          </div>
+          
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
+            <h2 className="text-xl font-black text-slate-900 mb-4">Layanan BK Lainnya</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <button onClick={() => setShowAKPDForm(true)} className="p-4 border border-slate-200 rounded-2xl flex flex-col items-center justify-center text-center hover:bg-slate-50 transition gap-2 group">
+                <FileText className="w-8 h-8 text-indigo-500 group-hover:scale-110 transition" />
+                <span className="font-bold text-slate-800">Isi Asesmen Kebutuhan Murid (AKM)</span>
+                <span className="text-xs text-slate-500">Bantu kami memahami kebutuhanmu di sekolah</span>
+              </button>
+              <button onClick={() => setShowSosiometriForm(true)} className={`p-4 border rounded-2xl flex flex-col items-center justify-center text-center transition gap-2 group ${mySociometry ? 'border-emerald-200 bg-emerald-50/30 hover:bg-emerald-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                {mySociometry ? (
+                  <CheckCircle className="w-8 h-8 text-emerald-500 group-hover:scale-110 transition" />
+                ) : (
+                  <Users className="w-8 h-8 text-rose-500 group-hover:scale-110 transition" />
+                )}
+                <span className="font-bold text-slate-800">{mySociometry ? 'Edit Sosiometri Kelas' : 'Isi Sosiometri Kelas'}</span>
+                <span className={`text-xs ${mySociometry ? 'text-emerald-600' : 'text-slate-500'}`}>{mySociometry ? 'Sudah Diisi' : 'Pemetaan hubungan pertemanan di kelas'}</span>
+              </button>
+
+              <button onClick={() => setShowKarirForm(true)} className="p-4 border border-slate-200 rounded-2xl flex flex-col items-center justify-center text-center hover:bg-slate-50 transition gap-2 group">
+                <Briefcase className="w-8 h-8 text-amber-500 group-hover:scale-110 transition" />
+                <span className="font-bold text-slate-800">Karir & Peminatan</span>
+                <span className="text-xs text-slate-500">Rencanakan cita-cita & minatmu</span>
+              </button>
+
+            </div>
+          </div>
+
+          {/* Modal AKPD */}
+          {showAKPDForm && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+              <div className="bg-white rounded-3xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-indigo-50">
+                  <div>
+                    <h2 className="text-xl font-black text-indigo-900">Formulir AKM</h2>
+                    <p className="text-sm text-indigo-700 mt-1">Asesmen Kebutuhan Murid - Skala Likert & Esai</p>
+                  </div>
+                  <button onClick={() => setShowAKPDForm(false)} className="p-2 hover:bg-indigo-100 rounded-full text-indigo-700 transition">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="p-6 overflow-y-auto space-y-8">
+                  <div className="bg-indigo-50/50 p-4 rounded-xl text-sm text-indigo-800 border border-indigo-100">
+                    <p className="font-bold mb-2">Silahkan beri tanda pada pilihan yang paling sesuai dengan kondisimu:</p>
+                    <ul className="list-disc pl-5 space-y-1">
+                      <li><span className="font-bold">TP</span> : Tidak Pernah</li>
+                      <li><span className="font-bold">KD</span> : Kadang-Kadang</li>
+                      <li><span className="font-bold">SR</span> : Sering</li>
+                    </ul>
+                  </div>
+
+                  {/* Likert Scale Questions */}
+                  <div className="space-y-6">
+                    {/* Pribadi */}
+                    <div className="space-y-3">
+                      <h3 className="font-bold text-slate-800 bg-slate-100 p-2 rounded-lg">A. BIDANG PRIBADI (Kematangan Emosi & Kemandirian)</h3>
+                      {[
+                        { id: 'q1', text: 'Saya merasa sulit mengendalikan emosi saat marah atau kecewa.' },
+                        { id: 'q2', text: 'Saya merasa kurang percaya diri dengan bentuk tubuh/penampilan saya.' },
+                        { id: 'q3', text: 'Saya sering merasa cemas atau stres tanpa alasan yang jelas.' },
+                        { id: 'q4', text: 'Saya merasa sulit untuk menolak ajakan teman yang berdampak buruk.' }
+                      ].map((q, i) => (
+                        <div key={q.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-b border-slate-100 hover:bg-slate-50 transition rounded-lg">
+                          <p className="text-sm text-slate-700 flex-1"><span className="font-bold mr-2">{i+1}.</span>{q.text}</p>
+                          <div className="flex gap-2 shrink-0">
+                            {[
+                              { label: 'TP', val: 1 },
+                              { label: 'KD', val: 2 },
+                              { label: 'SR', val: 3 }
+                            ].map(opt => (
+                              <button
+                                key={opt.val}
+                                onClick={() => setAkpdAnswers({...akpdAnswers, [q.id]: opt.val})}
+                                className={`px-4 py-2 rounded-lg text-sm font-bold border transition ${(akpdAnswers as any)[q.id] === opt.val ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'}`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Sosial */}
+                    <div className="space-y-3">
+                      <h3 className="font-bold text-slate-800 bg-slate-100 p-2 rounded-lg">B. BIDANG SOSIAL (Hubungan Remaja & Adaptasi)</h3>
+                      {[
+                        { id: 'q5', text: 'Saya merasa canggung atau sulit beradaptasi di lingkungan sekolah baru.' },
+                        { id: 'q6', text: 'Saya pernah/sedang mengalami ejekan, kucilan, atau bullying dari teman.' },
+                        { id: 'q7', text: 'Saya merasa suasana atau komunikasi di dalam rumah kurang harmonis.' },
+                        { id: 'q8', text: 'Saya merasa kesulitan dalam mencari teman akrab di kelas.' }
+                      ].map((q, i) => (
+                        <div key={q.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-b border-slate-100 hover:bg-slate-50 transition rounded-lg">
+                          <p className="text-sm text-slate-700 flex-1"><span className="font-bold mr-2">{i+5}.</span>{q.text}</p>
+                          <div className="flex gap-2 shrink-0">
+                            {[
+                              { label: 'TP', val: 1 },
+                              { label: 'KD', val: 2 },
+                              { label: 'SR', val: 3 }
+                            ].map(opt => (
+                              <button
+                                key={opt.val}
+                                onClick={() => setAkpdAnswers({...akpdAnswers, [q.id]: opt.val})}
+                                className={`px-4 py-2 rounded-lg text-sm font-bold border transition ${(akpdAnswers as any)[q.id] === opt.val ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'}`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Belajar */}
+                    <div className="space-y-3">
+                      <h3 className="font-bold text-slate-800 bg-slate-100 p-2 rounded-lg">C. BIDANG BELAJAR (Metode & Hambatan Akademik SMP)</h3>
+                      {[
+                        { id: 'q9', text: 'Saya sering menunda-nunda mengerjakan tugas sekolah sampai menumpuk.' },
+                        { id: 'q10', text: 'Belajar di rumah sering terganggu karena kecanduan game atau media sosial.' },
+                        { id: 'q11', text: 'Saya merasa grogi, pusing, atau takut yang berlebihan saat menghadapi ujian.' },
+                        { id: 'q12', text: 'Saya belum tahu gaya belajar yang cocok untuk saya (Visual/Auditori/Kinestetik).' }
+                      ].map((q, i) => (
+                        <div key={q.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-b border-slate-100 hover:bg-slate-50 transition rounded-lg">
+                          <p className="text-sm text-slate-700 flex-1"><span className="font-bold mr-2">{i+9}.</span>{q.text}</p>
+                          <div className="flex gap-2 shrink-0">
+                            {[
+                              { label: 'TP', val: 1 },
+                              { label: 'KD', val: 2 },
+                              { label: 'SR', val: 3 }
+                            ].map(opt => (
+                              <button
+                                key={opt.val}
+                                onClick={() => setAkpdAnswers({...akpdAnswers, [q.id]: opt.val})}
+                                className={`px-4 py-2 rounded-lg text-sm font-bold border transition ${(akpdAnswers as any)[q.id] === opt.val ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'}`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Karier */}
+                    <div className="space-y-3">
+                      <h3 className="font-bold text-slate-800 bg-slate-100 p-2 rounded-lg">D. BIDANG KARIER (Pengenalan Potensi & Masa Depan)</h3>
+                      {[
+                        { id: 'q13', text: 'Saya belum mengetahui bakat, minat, atau potensi utama dalam diri saya.' },
+                        { id: 'q14', text: 'Saya bingung menentukan pilihan antara masuk SMA atau SMK setelah lulus SMP.' },
+                        { id: 'q15', text: 'Pilihan sekolah lanjutan saya berbeda dengan keinginan orang tua.' },
+                        { id: 'q16', text: 'Saya membutuhkan informasi mengenai jenis-jenis pekerjaan di masa depan.' }
+                      ].map((q, i) => (
+                        <div key={q.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-b border-slate-100 hover:bg-slate-50 transition rounded-lg">
+                          <p className="text-sm text-slate-700 flex-1"><span className="font-bold mr-2">{i+13}.</span>{q.text}</p>
+                          <div className="flex gap-2 shrink-0">
+                            {[
+                              { label: 'TP', val: 1 },
+                              { label: 'KD', val: 2 },
+                              { label: 'SR', val: 3 }
+                            ].map(opt => (
+                              <button
+                                key={opt.val}
+                                onClick={() => setAkpdAnswers({...akpdAnswers, [q.id]: opt.val})}
+                                className={`px-4 py-2 rounded-lg text-sm font-bold border transition ${(akpdAnswers as any)[q.id] === opt.val ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'}`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Essay Section */}
+                  <div className="space-y-4 pt-6 border-t border-slate-200">
+                    <div className="bg-indigo-50/50 p-4 rounded-xl text-sm text-indigo-800 border border-indigo-100">
+                      <p className="font-bold mb-1">BAGIAN B: PERTANYAAN ESAY TERBUKA (Eksplorasi Mendalam)</p>
+                      <p>Jawablah pertanyaan di bawah ini dengan singkat dan jujur.</p>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-bold text-slate-800 mb-1">Kondisi Emosi</label>
+                        <p className="text-sm text-slate-600 mb-2">Apa hal yang paling sering membuatmu merasa sedih, kecewa, atau tertekan dalam 3 bulan terakhir ini?</p>
+                        <textarea
+                          value={akpdAnswers.essayEmotion}
+                          onChange={(e) => setAkpdAnswers({...akpdAnswers, essayEmotion: e.target.value})}
+                          className="w-full p-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 outline-none transition resize-none"
+                          rows={3}
+                          placeholder="Jawaban..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-slate-800 mb-1">Hubungan Sosial</label>
+                        <p className="text-sm text-slate-600 mb-2">Jika kamu memiliki masalah (baik di rumah maupun di sekolah), siapakah orang pertama yang biasanya kamu ajak bercerita atau meminta bantuan?</p>
+                        <textarea
+                          value={akpdAnswers.essaySocial}
+                          onChange={(e) => setAkpdAnswers({...akpdAnswers, essaySocial: e.target.value})}
+                          className="w-full p-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 outline-none transition resize-none"
+                          rows={3}
+                          placeholder="Jawaban..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-slate-800 mb-1">Target Belajar</label>
+                        <p className="text-sm text-slate-600 mb-2">Apa kesulitan terbesar yang kamu hadapi pada mata pelajaran tertentu di SMP saat ini?</p>
+                        <textarea
+                          value={akpdAnswers.essayAcademic}
+                          onChange={(e) => setAkpdAnswers({...akpdAnswers, essayAcademic: e.target.value})}
+                          className="w-full p-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 outline-none transition resize-none"
+                          rows={3}
+                          placeholder="Jawaban..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-slate-800 mb-1">Cita-Cita Awal</label>
+                        <p className="text-sm text-slate-600 mb-2">Sebutkan 2 profesi atau pekerjaan yang paling kamu impikan saat ini!</p>
+                        <textarea
+                          value={akpdAnswers.essayCareer}
+                          onChange={(e) => setAkpdAnswers({...akpdAnswers, essayCareer: e.target.value})}
+                          className="w-full p-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 outline-none transition resize-none"
+                          rows={3}
+                          placeholder="Jawaban..."
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+                <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50">
+                  <button onClick={() => setShowAKPDForm(false)} className="px-5 py-2.5 rounded-xl font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition">
+                    Batal
+                  </button>
+                  <button 
+                    onClick={() => {
+                      // Check if all Likert questions are answered
+                      const allAnswered = Object.keys(akpdAnswers).filter(k => k.startsWith('q')).every(k => (akpdAnswers as any)[k] > 0);
+                      if (!allAnswered) {
+                        toast.error('Mohon isi semua pertanyaan pilihan ganda terlebih dahulu.');
+                        return;
+                      }
+
+                      if (onAddNeedsAssessment) {
+                        onAddNeedsAssessment({
+                          studentNis: currentStudent.nis,
+                          ...akpdAnswers
+                        } as any);
+                      }
+                      setShowAKPDForm(false);
+                      toast.success('AKM Berhasil Disimpan!');
+                    }} 
+                    className="px-5 py-2.5 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md transition"
+                  >
+                    Kirim Asesmen
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+                    {/* Modal Sosiometri */}
+          {showSosiometriForm && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+              <div className="bg-white rounded-3xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-rose-50">
+                  <div>
+                    <h2 className="text-xl font-black text-rose-900">Formulir Sosiometri</h2>
+                    <p className="text-sm text-rose-700 mt-1">Pilih teman di kelasmu (Maksimal 3 orang)</p>
+                  </div>
+                  <button onClick={() => setShowSosiometriForm(false)} className="p-2 hover:bg-rose-100 rounded-full text-rose-700 transition">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="p-6 overflow-y-auto">
+                  <p className="text-sm text-slate-600 mb-4">Siapa teman di kelas yang paling sering kamu jadikan tempat berdiskusi atau bekerja kelompok?</p>
+                  
+                  <div className="mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <p className="text-sm font-bold text-slate-800 mb-3">Teman Terpilih ({selectedFriends.length}/3)</p>
+                    {selectedFriends.length === 0 ? (
+                      <p className="text-xs text-slate-500 italic">Belum ada teman yang dipilih</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {selectedFriends.map(nis => {
+                          const f = students.find(s => s.nis === nis);
+                          return (
+                            <div key={nis} className="flex items-center gap-1.5 bg-rose-100 text-rose-800 px-3 py-1.5 rounded-full text-sm font-bold border border-rose-200 shadow-sm">
+                              {f?.name}
+                              <button onClick={(e) => { e.stopPropagation(); setSelectedFriends(selectedFriends.filter(n => n !== nis)); }} className="hover:text-rose-950 hover:bg-rose-200 p-0.5 rounded-full transition ml-1" title="Hapus pilihan ini">
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="text-sm font-bold text-slate-800 mb-3">Daftar Teman Kelas</p>
+                  <div className="space-y-2">
+                    {students.filter(s => s.classId === currentStudent.classId && s.nis !== currentStudent.nis).map(friend => (
+                      <button
+                        key={friend.nis}
+                        onClick={() => {
+                          if (selectedFriends.includes(friend.nis)) {
+                            setSelectedFriends(selectedFriends.filter(nis => nis !== friend.nis));
+                          } else if (selectedFriends.length < 3) {
+                            setSelectedFriends([...selectedFriends, friend.nis]);
+                          }
+                        }}
+                        className={`w-full text-left p-3 rounded-xl border-2 transition flex items-center justify-between ${selectedFriends.includes(friend.nis) ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-slate-200 text-slate-700 hover:border-rose-300'}`}
+                      >
+                        <span className="font-bold">{friend.name}</span>
+                        {selectedFriends.includes(friend.nis) && <CheckCircle className="w-5 h-5 text-rose-500" />}
+                      </button>
+                    ))}
+                    {students.filter(s => s.classId === currentStudent.classId && s.nis !== currentStudent.nis).length === 0 && (
+                      <div className="text-center p-4 text-slate-500 bg-slate-50 rounded-xl">Belum ada data teman di kelas ini.</div>
+                    )}
+                  </div>
+                </div>
+                <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50">
+                  {mySociometry && onDeleteSociometry && (
+                    <button 
+                      onClick={() => {
+                        onDeleteSociometry(mySociometry.id);
+                        setShowSosiometriForm(false);
+                        toast.success('Data Sosiometri Dihapus!');
+                      }} 
+                      className="mr-auto px-5 py-2.5 rounded-xl font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 transition">
+                      Hapus Data
+                    </button>
+                  )}
+                  <button onClick={() => setShowSosiometriForm(false)} className="px-5 py-2.5 rounded-xl font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition">
+                    Batal
+                  </button>
+                  <button 
+                    onClick={() => {
+                      if (mySociometry && onUpdateSociometry) {
+                        onUpdateSociometry(mySociometry.id, { friendsWith: selectedFriends });
+                        toast.success('Pilihan Teman Berhasil Diperbarui!');
+                      } else if (onAddSociometry) {
+                        onAddSociometry({
+                          studentNis: currentStudent.nis,
+                          classId: currentStudent.classId,
+                          friendsWith: selectedFriends
+                        });
+                        toast.success('Sosiometri Berhasil Disimpan!');
+                      }
+                      setShowSosiometriForm(false);
+                    }} 
+                    disabled={selectedFriends.length === 0}
+                    className="px-5 py-2.5 rounded-xl font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 shadow-md transition"
+                  >
+                    {mySociometry ? 'Simpan Perubahan' : 'Kirim Pilihan'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+
       {activeTab === 'beranda' && !examStarted && (
         <div className="space-y-6 animate-fade-in">
           {/* Quick Stats Banner */}
@@ -1330,5 +1844,70 @@ export default function StudentPanel({
         </div>
       )}
     </div>
+      {/* Modal Karir & Peminatan */}
+      {showKarirForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-amber-50">
+              <h2 className="text-xl font-black text-amber-900 flex items-center gap-2">
+                <Briefcase className="w-6 h-6" /> Perencanaan Karir
+              </h2>
+              <button onClick={() => setShowKarirForm(false)} className="p-2 hover:bg-amber-100 rounded-full text-amber-700 transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4 overflow-y-auto">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Cita-cita / Target Karir</label>
+                <input type="text" value={karirTarget} onChange={e => setKarirTarget(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 outline-none" placeholder="Cth: Dokter, Programmer, Pengusaha" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Minat / Hobi (Pisahkan dengan koma)</label>
+                <textarea value={karirInterests} onChange={e => setKarirInterests(e.target.value)} rows={2} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 outline-none" placeholder="Cth: Membaca, Melukis, Olahraga..."></textarea>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Kelebihan / Kekuatan Diri (Pisahkan dengan koma)</label>
+                <textarea value={karirStrengths} onChange={e => setKarirStrengths(e.target.value)} rows={2} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 outline-none" placeholder="Cth: Teliti, Public Speaking, Matematika..."></textarea>
+              </div>
+              
+              {myCareerPlan?.counselorNotes && (
+                <div className="mt-4 p-4 bg-amber-50 rounded-xl border border-amber-100">
+                  <p className="text-sm font-bold text-amber-800 mb-1">Saran / Catatan Guru BK:</p>
+                  <p className="text-sm text-amber-900">{myCareerPlan.counselorNotes}</p>
+                </div>
+              )}
+            </div>
+            <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50 mt-auto">
+              <button onClick={() => setShowKarirForm(false)} className="px-5 py-2.5 rounded-xl font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition">
+                Batal
+              </button>
+              <button 
+                onClick={() => {
+                  const dataToSave = {
+                    studentNis: currentStudent.nis,
+                    studentName: currentStudent.name,
+                    className: currentStudent.className || 'Unknown',
+                    targetCareer: karirTarget,
+                    interests: karirInterests.split(',').map(s => s.trim()).filter(s => s),
+                    strengths: karirStrengths.split(',').map(s => s.trim()).filter(s => s),
+                  };
+                  if (myCareerPlan && onUpdateCareerPlan) {
+                    onUpdateCareerPlan(myCareerPlan.id, dataToSave);
+                    toast.success('Rencana Karir Diperbarui!');
+                  } else if (onAddCareerPlan) {
+                    onAddCareerPlan(dataToSave);
+                    toast.success('Rencana Karir Disimpan!');
+                  }
+                  setShowKarirForm(false);
+                }}
+                className="px-5 py-2.5 rounded-xl font-bold text-white bg-amber-600 hover:bg-amber-700 shadow-md transition"
+              >
+                Simpan Karir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

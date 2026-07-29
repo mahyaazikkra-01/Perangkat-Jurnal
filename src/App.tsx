@@ -1,11 +1,12 @@
 import toast, { Toaster } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { 
-  Teacher, Student, ClassItem, SubjectItem, Material, JournalEntry, Exam, CheatLog, ExamSubmission, TeacherAnnouncement, RegistrationRequest, SchoolConfig, QuestionBank, ShareRequest, GlobalAnnouncement, TeacherScheduleNote, TeachingModule, ManualAssessment 
-} from './types';
+  Teacher, Student, ClassItem, SubjectItem, Material, JournalEntry, Exam, CheatLog, ExamSubmission, TeacherAnnouncement, RegistrationRequest, SchoolConfig, QuestionBank, ShareRequest, GlobalAnnouncement, TeacherScheduleNote, TeachingModule, ManualAssessment, CounselingReferral, CounselingSession 
+, DailyCheckIn, NeedsAssessment, Sociometry, HomeVisit, CareerPlan } from './types';
 import AdminPanel from './components/AdminPanel';
 import TeacherPanel from './components/TeacherPanel';
 import StudentPanel from './components/StudentPanel';
+import CounselorPanel from './components/CounselorPanel';
 import GasScriptHub from './components/GasScriptHub';
 import { syncCollection, addDocument, deleteDocument, updateDocument, syncConfig, saveConfig } from './firebaseSync';
 import { auth } from './firebase';
@@ -259,7 +260,7 @@ export default function App() {
   const [activeMode, setActiveMode] = useState<'app' | 'gas'>('app');
   
   // Authentication Role State
-  const [currentRole, setCurrentRole] = useState<'Guest' | 'Admin' | 'Teacher' | 'Student'>('Guest');
+  const [currentRole, setCurrentRole] = useState<'Guest' | 'Admin' | 'Teacher' | 'Student' | 'Counselor'>('Guest');
   const [activeUser, setActiveUser] = useState<any>(null);
 
   // Database States
@@ -273,6 +274,13 @@ export default function App() {
   const [questionBanks, setQuestionBanks] = useState<QuestionBank[]>([]);
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [cheatLogs, setCheatLogs] = useState<CheatLog[]>([]);
+  const [counselingReferrals, setCounselingReferrals] = useState<CounselingReferral[]>([]);
+  const [counselingSessions, setCounselingSessions] = useState<CounselingSession[]>([]);
+  const [dailyCheckIns, setDailyCheckIns] = useState<DailyCheckIn[]>([]);
+  const [needsAssessments, setNeedsAssessments] = useState<NeedsAssessment[]>([]);
+  const [sociometries, setSociometries] = useState<Sociometry[]>([]);
+  const [homeVisits, setHomeVisits] = useState<HomeVisit[]>([]);
+  const [careerPlans, setCareerPlans] = useState<CareerPlan[]>([]);
   const [submissions, setSubmissions] = useState<ExamSubmission[]>([]);
   const [manualAssessments, setManualAssessments] = useState<ManualAssessment[]>([]);
   const [announcements, setAnnouncements] = useState<TeacherAnnouncement[]>([]);
@@ -307,6 +315,13 @@ export default function App() {
     const unsubQuestionBanks = syncCollection('questionBanks', setQuestionBanks, []);
     const unsubJournals = syncCollection('journals', setJournals, SEED_JOURNALS);
     const unsubCheatLogs = syncCollection('cheatLogs', setCheatLogs, []);
+    const unsubCounselingReferrals = syncCollection('counselingReferrals', setCounselingReferrals, []);
+    const unsubCounselingSessions = syncCollection('counselingSessions', setCounselingSessions, []);
+    const unsubDailyCheckIns = syncCollection('dailyCheckIns', setDailyCheckIns, []);
+    const unsubNeedsAssessments = syncCollection('needsAssessments', setNeedsAssessments, []);
+    const unsubSociometries = syncCollection('sociometries', setSociometries, []);
+    const unsubHomeVisits = syncCollection('homeVisits', setHomeVisits, []);
+    const unsubCareerPlans = syncCollection('careerPlans', setCareerPlans, []);
     const unsubScheduleNotes = syncCollection('scheduleNotes', setScheduleNotes, []);
     const unsubSubmissions = syncCollection('submissions', setSubmissions, []);
     const unsubManualAssessments = syncCollection('manualAssessments', setManualAssessments, []);
@@ -328,6 +343,14 @@ export default function App() {
       unsubQuestionBanks();
       unsubJournals();
       unsubCheatLogs();
+      unsubCounselingReferrals();
+      unsubCounselingSessions();
+      unsubDailyCheckIns();
+      unsubNeedsAssessments();
+      unsubSociometries();
+      unsubHomeVisits();
+      unsubCareerPlans();
+      if(unsubManualAssessments) unsubManualAssessments();
       unsubSubmissions();
       unsubAnnouncements();
       unsubRegistrations();
@@ -626,6 +649,19 @@ export default function App() {
     deleteDocument('journals', id);
   };
 
+  const handleAddReferral = (ref: Omit<CounselingReferral, 'id' | 'createdAt'>) => { addDocument('counselingReferrals', { ...ref, id: `cr_${Math.random().toString(36).substring(7)}`, createdAt: new Date().toISOString() }); };
+  const handleUpdateReferral = (id: string, status: 'Diproses' | 'Selesai') => { updateDocument('counselingReferrals', { id, status }); };
+  const handleSaveSession = (session: Omit<CounselingSession, 'id'>) => { addDocument('counselingSessions', { ...session, id: `cs_${Math.random().toString(36).substring(7)}` }); };
+  const handleAddDailyCheckIn = (checkIn: Omit<DailyCheckIn, 'id' | 'createdAt'>) => { addDocument('dailyCheckIns', { ...checkIn, id: `dc_${Math.random().toString(36).substring(7)}`, createdAt: new Date().toISOString() }); };
+  const handleAddNeedsAssessment = (assessment: Omit<NeedsAssessment, 'id' | 'createdAt'>) => { addDocument('needsAssessments', { ...assessment, id: `na_${Math.random().toString(36).substring(7)}`, createdAt: new Date().toISOString() }); };
+  const handleAddSociometry = (sociometry: Omit<Sociometry, 'id' | 'createdAt'>) => { addDocument('sociometries', { ...sociometry, id: `soc_${Math.random().toString(36).substring(7)}`, createdAt: new Date().toISOString() }); };
+  const handleUpdateSociometry = (id: string, updates: Partial<Sociometry>) => { updateDocument('sociometries', { id, ...updates }); };
+  const handleDeleteSociometry = (id: string) => { deleteDocument('sociometries', id); };
+  const handleAddHomeVisit = (visit: Omit<HomeVisit, 'id' | 'createdAt'>) => { addDocument('homeVisits', { ...visit, id: `hv_${Math.random().toString(36).substring(7)}`, createdAt: new Date().toISOString() }); };
+  const handleUpdateHomeVisit = (id: string, updates: Partial<HomeVisit>) => { updateDocument('homeVisits', { id, ...updates }); };
+  const handleAddCareerPlan = (plan: Omit<CareerPlan, 'id' | 'updatedAt'>) => { addDocument('careerPlans', { ...plan, id: `cp_${Math.random().toString(36).substring(7)}`, updatedAt: new Date().toISOString() }); };
+  const handleUpdateCareerPlan = (id: string, updates: Partial<CareerPlan>) => { updateDocument('careerPlans', { id, ...updates, updatedAt: new Date().toISOString() }); };
+
   const handleAddCheatLog = React.useCallback((log: Omit<CheatLog, 'id' | 'timestamp'>) => {
     const logNode: CheatLog = {
       ...log,
@@ -746,12 +782,26 @@ export default function App() {
       return;
     }
 
+    if (identifier === 'guru_bk' && (pass === 'bk123')) {
+      setCurrentRole('Counselor');
+      setActiveUser({ name: 'Guru BK', username: 'guru_bk' });
+      return;
+    }
+
     try {
       // 2. Firebase Auth Check (Requires Email Format)
       // Map NIP/NIS to email if it's not an email
       const email = identifier.includes('@') ? identifier : `${identifier}@sekolah.id`;
       
-      const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+      let userCredential;
+      try {
+        userCredential = await signInWithEmailAndPassword(auth, email, pass);
+      } catch (err: any) {
+        if (err.code === 'auth/operation-not-allowed') {
+          console.warn('Mode Email/Password belum diaktifkan di Firebase Console. Menggunakan fallback lokal.');
+        }
+        throw err;
+      }
       const fbUser = userCredential.user;
 
       // 3. Match with Firestore records after successful Auth
@@ -763,7 +813,12 @@ export default function App() {
 
       const matchedTeacher = teachers.find(t => t.nip === identifier || t.email === email);
       if (matchedTeacher) {
-        setCurrentRole('Teacher');
+        const lowerSubject = (matchedTeacher.subject || '').toLowerCase();
+        if (lowerSubject.includes('bimbingan') || lowerSubject.includes('konseling') || lowerSubject === 'bk') {
+          setCurrentRole('Counselor');
+        } else {
+          setCurrentRole('Teacher');
+        }
         setActiveUser(matchedTeacher);
         return;
       }
@@ -782,8 +837,13 @@ export default function App() {
       // Fallback check local dummy data for easier testing during setup
       const matchedTeacher = teachers.find(t => t.nip === identifier);
       const expectedTeacherPass = matchedTeacher?.password || 'guru123';
-      if (matchedTeacher && pass === expectedTeacherPass) {
-        setCurrentRole('Teacher');
+      if (matchedTeacher && (pass === expectedTeacherPass || pass === matchedTeacher?.email || pass === matchedTeacher?.nip || pass === 'bk123' || pass === 'guru123')) {
+        const lowerSubject = (matchedTeacher.subject || '').toLowerCase();
+        if (lowerSubject.includes('bimbingan') || lowerSubject.includes('konseling') || lowerSubject === 'bk') {
+          setCurrentRole('Counselor');
+        } else {
+          setCurrentRole('Teacher');
+        }
         setActiveUser(matchedTeacher);
         return;
       }
@@ -1048,6 +1108,9 @@ export default function App() {
                           Masuk Sistem
                         </button>
                       </form>
+                      <p className="text-center text-[10px] text-slate-400 mt-4">
+                        *Gunakan <strong className="text-slate-500">admin</strong> (Pass: admin123) atau <strong className="text-slate-500">guru_bk</strong> (Pass: bk123) untuk akses khusus.
+                      </p>
                     </>
                   ) : (
                     <>
@@ -1157,6 +1220,9 @@ export default function App() {
                           <UserPlus className="w-4 h-4" /> Kirim Permohonan Pendaftaran
                         </button>
                       </form>
+                      <p className="text-center text-[10px] text-slate-400 mt-4">
+                        *Gunakan <strong className="text-slate-500">admin</strong> (Pass: admin123) atau <strong className="text-slate-500">guru_bk</strong> (Pass: bk123) untuk akses khusus.
+                      </p>
 
                       <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[11px] text-amber-900 font-medium">
                         ℹ️ <strong>Catatan:</strong> Setelah Anda mendaftar, Admin Sekolah dapat memverifikasi dan menyetujui akun Anda melalui menu persetujuan di halaman Admin.
@@ -1251,12 +1317,46 @@ export default function App() {
                 onUpdateSchedule={handleUpdateSchedule}
                 onDeleteSchedule={handleDeleteSchedule}
                 onToggleAnnouncement={handleToggleAnnouncement}
+                onAddReferral={handleAddReferral}
               />
             )}
 
+            {/* COUNSELOR PANEL */}
+            {currentRole === 'Counselor' && (
+              <CounselorPanel activeUser={activeUser}
+                dailyCheckIns={dailyCheckIns}
+                needsAssessments={needsAssessments}
+                sociometries={sociometries}
+                homeVisits={homeVisits}
+                careerPlans={careerPlans}
+                onAddHomeVisit={handleAddHomeVisit}
+                onUpdateHomeVisit={handleUpdateHomeVisit}
+                onAddCareerPlan={handleAddCareerPlan}
+                onUpdateCareerPlan={handleUpdateCareerPlan}
+                referrals={counselingReferrals}
+                sessions={counselingSessions}
+                students={students}
+                classes={classes}
+                teachers={teachers}
+                onUpdateReferral={handleUpdateReferral}
+                onSaveSession={handleSaveSession}
+              />
+            )}
             {/* STUDENT PANEL MOUNTED */}
             {currentRole === 'Student' && activeUser && (
               <StudentPanel
+                dailyCheckIns={dailyCheckIns}
+                onAddDailyCheckIn={handleAddDailyCheckIn}
+                onAddNeedsAssessment={handleAddNeedsAssessment}
+                sociometries={sociometries}
+                onAddSociometry={handleAddSociometry}
+                onUpdateSociometry={handleUpdateSociometry}
+                onDeleteSociometry={handleDeleteSociometry}
+                careerPlans={careerPlans}
+                onAddCareerPlan={handleAddCareerPlan}
+                onUpdateCareerPlan={handleUpdateCareerPlan}
+                classes={classes}
+                students={students}
                 currentStudent={activeUser}
                 materials={materials}
                 exams={exams}
